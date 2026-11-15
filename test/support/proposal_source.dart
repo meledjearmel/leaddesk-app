@@ -6,13 +6,16 @@ import 'package:leaddesk_app/office/studio_template.dart';
 
 /// Source de démonstration avec un plan en vigueur et une proposition des
 /// Moyens généraux : le studio grandit, la salle de jeux disparaît.
-class ProposalSource implements OfficeSource, ProposalDecider {
+class ProposalSource implements OfficeSource, ProposalDecider, PlanSaver {
   ProposalSource({this.failWith});
 
   /// Exception levée par les décisions, pour tester les erreurs.
   final Exception? failWith;
 
   final List<String> decisions = <String>[];
+
+  /// Plans enregistrés par le CEO.
+  final List<OfficePlan> saved = <OfficePlan>[];
   bool decided = false;
 
   static OfficePlan currentPlan() =>
@@ -37,7 +40,7 @@ class ProposalSource implements OfficeSource, ProposalDecider {
   @override
   Future<OfficeSnapshot> load() async => OfficeSnapshot(
     departments: studioDepartments(),
-    plan: currentPlan(),
+    plan: saved.isEmpty ? currentPlan() : saved.last,
     planFromServer: true,
     agents: DemoData.agents,
     proposals: decided
@@ -55,6 +58,14 @@ class ProposalSource implements OfficeSource, ProposalDecider {
             ),
           ],
   );
+
+  @override
+  Future<void> savePlan(OfficePlan plan) async {
+    if (failWith case final error?) {
+      throw error;
+    }
+    saved.add(plan);
+  }
 
   @override
   Future<void> accept(int proposalId, {String? comment}) async {

@@ -136,9 +136,14 @@ void main() {
     });
   }
 
-  for (final preview in const <bool>[false, true]) {
+  for (final (preview, edit) in const <(bool, bool)>[
+    (false, false),
+    (true, false),
+    (false, true),
+  ]) {
     testWidgets(
-      'capture la validation d\'une proposition${preview ? ' (aperçu)' : ''}',
+      'capture ${edit ? 'l\'aménagement' : 'la validation d\'une proposition'}'
+      '${preview ? ' (aperçu)' : ''}',
       skip: skip,
       (tester) async {
         await _loadFont('Segoe UI', const <String>[
@@ -182,6 +187,13 @@ void main() {
           await tester.tap(find.text('Examiner'));
           await tester.pump(const Duration(milliseconds: 600));
         }
+        if (edit) {
+          await tester.tap(find.byIcon(Icons.design_services_outlined));
+          await tester.pump(const Duration(milliseconds: 300));
+          // Une salle ajoutée depuis le catalogue est aussitôt choisie.
+          await tester.tap(find.text('Bureau individuel'));
+          await tester.pump(const Duration(milliseconds: 300));
+        }
 
         await tester.runAsync(() async {
           final boundary =
@@ -189,7 +201,9 @@ void main() {
           final image = await boundary.toImage();
           await _writePng(
             image,
-            '$dir/proposition_${preview ? 'apercu' : 'bandeau'}.png',
+            edit
+                ? '$dir/amenager.png'
+                : '$dir/proposition_${preview ? 'apercu' : 'bandeau'}.png',
           );
           image.dispose();
         });

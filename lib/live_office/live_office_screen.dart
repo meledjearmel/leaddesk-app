@@ -14,9 +14,11 @@ import 'scene/plan_scene.dart';
 import 'widgets/agent_panel.dart';
 import 'widgets/common.dart';
 import 'widgets/conversation_panel.dart';
+import 'widgets/editor_panel.dart';
 import 'widgets/icon_rail.dart';
 import 'widgets/map_overlays.dart';
 import 'widgets/office_view.dart';
+import 'widgets/plan_editor_view.dart';
 import 'widgets/proposal_panel.dart';
 
 /// Écran principal : rail d'icônes, panneau des agents, bureau vivant et
@@ -199,7 +201,11 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                     _controller.agentPanelOpen &&
                     width >= LiveOfficeScreen.agentPanelBreakpoint;
                 // La proposition ouverte prend la place de la conversation.
+                final editing =
+                    _controller.editing &&
+                    width >= LiveOfficeScreen.agentPanelBreakpoint;
                 final showProposal =
+                    !editing &&
                     _controller.openProposal != null &&
                     width >= LiveOfficeScreen.agentPanelBreakpoint;
                 final showConversation =
@@ -219,7 +225,10 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                       const SizedBox(width: 8),
                     ],
                     Expanded(child: _buildMap()),
-                    if (showProposal) ...<Widget>[
+                    if (editing) ...<Widget>[
+                      const SizedBox(width: 8),
+                      EditorPanel(controller: _controller),
+                    ] else if (showProposal) ...<Widget>[
                       const SizedBox(width: 8),
                       ProposalPanel(controller: _controller),
                     ] else if (showConversation) ...<Widget>[
@@ -252,23 +261,29 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
             return Stack(
               fit: StackFit.expand,
               children: <Widget>[
-                OfficeView(
-                  controller: _controller,
-                  camera: _camera,
-                  frames: _frames,
-                ),
-                if (_controller.mode == OfficeViewMode.plateau)
+                if (_controller.editor case final editor?)
+                  PlanEditorView(editor: editor)
+                else
+                  OfficeView(
+                    controller: _controller,
+                    camera: _camera,
+                    frames: _frames,
+                  ),
+                if (!_controller.editing &&
+                    _controller.mode == OfficeViewMode.plateau)
                   DepartmentTagLayer(
                     camera: _camera,
                     geometry: _geometry,
                     presentOf: (id) => _controller.agentsOf(id).length,
                   ),
-                AgentTagLayer(
-                  controller: _controller,
-                  camera: _camera,
-                  feetOf: _feetOf,
-                  uniformPlacement: _controller.mode == OfficeViewMode.plateau,
-                ),
+                if (!_controller.editing)
+                  AgentTagLayer(
+                    controller: _controller,
+                    camera: _camera,
+                    feetOf: _feetOf,
+                    uniformPlacement:
+                        _controller.mode == OfficeViewMode.plateau,
+                  ),
                 Positioned(
                   top: 12,
                   left: 12,
@@ -280,7 +295,8 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                     ),
                   ),
                 ),
-                if (_controller.proposals.isNotEmpty &&
+                if (!_controller.editing &&
+                    _controller.proposals.isNotEmpty &&
                     (_controller.openProposal == null ||
                         _controller.previewing))
                   Positioned(
@@ -294,12 +310,13 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                       ),
                     ),
                   ),
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: MapZoomControl(camera: _camera),
-                ),
-                if (roomy)
+                if (!_controller.editing)
+                  Positioned(
+                    top: 12,
+                    right: 12,
+                    child: MapZoomControl(camera: _camera),
+                  ),
+                if (roomy && !_controller.editing)
                   Positioned(
                     left: 12,
                     bottom: 12,

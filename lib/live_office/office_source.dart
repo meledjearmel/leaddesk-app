@@ -36,6 +36,12 @@ abstract interface class ProposalDecider {
   Future<void> reject(int proposalId, {String? comment});
 }
 
+/// Enregistrement du plan dessiné par le CEO (D-016) ; il entre en vigueur
+/// sans approbation.
+abstract interface class PlanSaver {
+  Future<void> savePlan(OfficePlan plan);
+}
+
 /// Ce que montre le bureau vivant : départements, plan et agents.
 class OfficeSnapshot {
   const OfficeSnapshot({
@@ -88,7 +94,7 @@ class DemoOfficeSource implements OfficeSource {
 ///
 /// Sans plan en vigueur, ou si le plan du serveur ne respecte plus les règles
 /// (organisation changée depuis), l'aménageur automatique prend le relais.
-class ApiOfficeSource implements OfficeSource, ProposalDecider {
+class ApiOfficeSource implements OfficeSource, ProposalDecider, PlanSaver {
   const ApiOfficeSource(this.client);
 
   final ApiClient client;
@@ -172,6 +178,10 @@ class ApiOfficeSource implements OfficeSource, ProposalDecider {
     }
     return null;
   }
+
+  @override
+  Future<void> savePlan(OfficePlan plan) =>
+      client.put('office/plan', <String, Object?>{'layout': plan.toJson()});
 
   @override
   Future<void> accept(int proposalId, {String? comment}) => client.post(

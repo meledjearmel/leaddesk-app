@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../api/api_client.dart';
 import '../office/office_plan.dart';
 import '../office/office_planner.dart';
+import '../office/plan_editor.dart';
 import '../office/studio_template.dart';
 import 'models.dart';
 import 'office_source.dart';
@@ -77,6 +78,73 @@ class LiveOfficeController extends ChangeNotifier {
 
   bool get deciding => _deciding;
   String? get decisionError => _decisionError;
+
+  PlanEditor? _editor;
+  bool _saving = false;
+  String? _saveError;
+
+  /// Brouillon du mode « Aménager », ou `null` hors de ce mode (D-016).
+  PlanEditor? get editor => _editor;
+  bool get editing => _editor != null;
+  bool get saving => _saving;
+  String? get saveError => _saveError;
+
+  /// Passe en mode « Aménager » à partir du plan en vigueur.
+  void startEditing() {
+    if (_editor != null) {
+      return;
+    }
+    closeProposalPanel();
+    _mode = OfficeViewMode.plateau;
+    _saveError = null;
+    _editor = PlanEditor(_plan, _departments)..addListener(notifyListeners);
+    notifyListeners();
+  }
+
+  /// Quitte le mode « Aménager » sans rien enregistrer.
+  void cancelEditing() {
+    final editor = _editor;
+    if (editor == null) {
+      return;
+    }
+    _editor = null;
+    _saveError = null;
+    editor.dispose();
+    notifyListeners();
+  }
+
+  /// Enregistre le brouillon : sur le serveur s'il y en a un, sinon dans la
+  /// démonstration. Les propositions en attente deviennent périmées.
+  Future<void> saveEditing() async {
+    final editor = _editor;
+    if (editor == null || !editor.canSave || _saving) {
+      return;
+    }
+    final source = _source;
+    _saving = true;
+    _saveError = null;
+    notifyListeners();
+    try {
+      if (source is PlanSaver) {
+        await (source as PlanSaver).savePlan(editor.plan);
+      }
+      _saving = false;
+      _plan = editor.plan;
+      _revision++;
+      cancelEditing();
+      if (source != null && source is PlanSaver) {
+        await load(source);
+      }
+    } on ApiException catch (error) {
+      _saving = false;
+      _saveError = error.errors['layout']?.join('\n') ?? error.message;
+      notifyListeners();
+    } on Exception {
+      _saving = false;
+      _saveError = 'Serveur injoignable : le plan n\'est pas enregistré.';
+      notifyListeners();
+    }
+  }
 
   /// Ouvre une proposition et montre son plan sur la carte.
   void openProposalPanel(int id) {
@@ -332,6 +400,7 @@ class LiveOfficeController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _editor?.dispose();
     sceneTime.dispose();
     super.dispose();
   }

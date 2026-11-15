@@ -537,6 +537,17 @@ class MapControlBar extends StatelessWidget {
               color: const Color(0xFFB7B2AA),
             ),
           ),
+          LdIconButton(
+            icon: Icons.design_services_outlined,
+            tooltip: controller.editing
+                ? 'Quitter l\'aménagement sans enregistrer'
+                : 'Aménager : déplacer, ajouter ou retirer des salles',
+            active: controller.editing,
+            iconSize: 17,
+            onTap: controller.editing
+                ? controller.cancelEditing
+                : controller.startEditing,
+          ),
           const _BarButton(
             label: 'Thème : Bureau',
             tooltip: 'Bureau sombre et chaleureux',

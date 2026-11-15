@@ -123,6 +123,17 @@ Questions ouvertes pour Armel : qui peut proposer un aménagement (une IA dédi�
 - **Règles** : « Accepter » est désactivé si le plan ne respecte pas les règles. Une confirmation est demandée quand le plan retire des salles. Après la décision, le bureau est rechargé depuis le serveur. Une erreur du serveur (par exemple une organisation changée depuis la proposition) s'affiche dans le panneau, et rien ne change.
 - **Comparaison** (`PlanDiff`) : une salle garde son identifiant d'un plan à l'autre ; un changement de département l'emporte sur un changement de taille, qui l'emporte sur un déplacement.
 - **Limites** : sur une fenêtre de moins de 820 px, le panneau ne tient pas ; seul l'aperçu sur la carte reste disponible. Pas de commentaire du CEO pour l'instant, même si l'API le permet.
+### D-016 · Mode « Aménager » du CEO
+
+- **Décision** : un bouton de la barre de contrôle (icône d'aménagement) remplace la scène par le plan vu de dessus, et la conversation par un panneau d'outils.
+  - Un clic choisit une salle ; un glisser la déplace, aimantée à la grille et gardée dans le plan.
+  - Le panneau permet de changer le département, d'agrandir ou de réduire la salle (jamais sous la taille minimale de son type) et de la retirer.
+  - On ajoute une salle depuis le catalogue, rangé par famille. Elle est posée à la première place libre et attribuée au département de la salle choisie ; un lieu commun n'a jamais de département.
+  - Annuler et Rétablir sont disponibles ; les règles sont vérifiées en direct (les salles qui se chevauchent sont entourées de rouge).
+  - « Enregistrer » n'est possible que si le plan est valable et modifié.
+- **Effet** : le plan du CEO entre en vigueur sans approbation (`PUT /office/plan`). Les propositions en attente deviennent périmées (D-012), puis le bureau est rechargé. Sans serveur, le plan s'applique à la démonstration.
+- **Logique** : `PlanEditor` (lib/office), sans interface, testé à part.
+- **Limites** : pas d'édition directe sur la scène isométrique (le plan vu de dessus est plus précis pour placer à la case) ; sous 820 px de large, le panneau ne tient pas et le mode ne s'affiche pas.
 ## Propositions de mise à jour des documents de conception
 
 - `REGLES_METIER_LEADDESK.md` (RM-02) : ajouter qu'une entreprise vierge contient toujours les unités RH et Moyens généraux, chacune avec un poste de responsable sans agent (D-013).
