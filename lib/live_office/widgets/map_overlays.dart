@@ -5,10 +5,15 @@ import '../live_office_controller.dart';
 import '../models.dart';
 import '../office_camera.dart';
 import '../scene/office_scene.dart';
+import '../scene/plan_scene.dart';
 import 'common.dart';
 
-/// Pieds d'un agent dans la scène, en pixels d'art, au temps [time].
-Offset agentFeet(String agentId, double time) {
+/// Pieds d'un agent dans la scène, en pixels d'art, au temps donné ;
+/// `null` si l'agent n'est pas dans la scène.
+typedef FeetOf = Offset? Function(String agentId, double time);
+
+/// Pieds des agents dans la salle détaillée de référence.
+Offset? roomFeet(String agentId, double time) {
   return switch (agentId) {
     'forge' => OfficeLayout.forgeSeat + const Offset(0, -8),
     'atlas' => OfficeLayout.atlasFeet,
@@ -24,11 +29,17 @@ class AgentTagLayer extends StatelessWidget {
   const AgentTagLayer({
     required this.controller,
     required this.camera,
+    required this.feetOf,
+    this.uniformPlacement = false,
     super.key,
   });
 
   final LiveOfficeController controller;
   final OfficeCamera camera;
+  final FeetOf feetOf;
+
+  /// Sur le plateau, toutes les étiquettes se posent au-dessus de l'agent.
+  final bool uniformPlacement;
 
   @override
   Widget build(BuildContext context) {
@@ -42,50 +53,181 @@ class AgentTagLayer extends StatelessWidget {
           clipBehavior: Clip.none,
           children: <Widget>[
             for (final agent in controller.agents)
-              () {
-                final feet = agentFeet(agent.id, time);
-                // Point d'accroche, en pixels d'art, puis écart fixe à l'écran.
-                final (anchor, shift, gap) = switch (agent.tagPlacement) {
-                  TagPlacement.aboveLeft => (
-                    feet + const Offset(-8, -head),
-                    const Offset(-1, -1),
-                    const Offset(-4, -4),
-                  ),
-                  TagPlacement.above => (
-                    feet + const Offset(0, -head),
-                    const Offset(-0.5, -1),
-                    const Offset(0, -8),
-                  ),
-                  TagPlacement.aboveRight => (
-                    feet + const Offset(-12, -head),
-                    const Offset(0, -1),
-                    const Offset(0, -8),
-                  ),
-                  TagPlacement.belowRight => (
-                    feet + const Offset(-40, 4),
-                    Offset.zero,
-                    const Offset(0, 8),
-                  ),
-                };
-                final at = camera.toScreen(anchor) + gap;
-                return Positioned(
-                  left: at.dx,
-                  top: at.dy,
-                  child: FractionalTranslation(
-                    translation: shift,
-                    child: _AgentTag(
-                      agent: agent,
-                      selected: agent.id == controller.selectedAgentId,
-                      // Les bulles se resserrent quand la scène est dézoomée.
-                      compact: scale < 1.6,
-                      onTap: () => controller.selectAgent(agent.id),
-                    ),
-                  ),
-                );
-              }(),
+              // Vue d'ensemble du plateau : seuls les agents en
+              // conversation ou sélectionnés gardent leur étiquette.
+              if (!uniformPlacement ||
+                  scale >= 1.6 ||
+                  agent.inConversation ||
+                  agent.id == controller.selectedAgentId)
+                if (feetOf(agent.id, time) case final feet?)
+                  () {
+                    // Point d'accroche, en pixels d'art, puis écart fixe à l'écran.
+                    final placement = uniformPlacement
+                        ? TagPlacement.above
+                        : agent.tagPlacement;
+                    final (anchor, shift, gap) = switch (placement) {
+                      TagPlacement.aboveLeft => (
+                        feet + const Offset(-8, -head),
+                        const Offset(-1, -1),
+                        const Offset(-4, -4),
+                      ),
+                      TagPlacement.above => (
+                        feet + const Offset(0, -head),
+                        const Offset(-0.5, -1),
+                        const Offset(0, -8),
+                      ),
+                      TagPlacement.aboveRight => (
+                        feet + const Offset(-12, -head),
+                        const Offset(0, -1),
+                        const Offset(0, -8),
+                      ),
+                      TagPlacement.belowRight => (
+                        feet + const Offset(-40, 4),
+                        Offset.zero,
+                        const Offset(0, 8),
+                      ),
+                    };
+                    final at = camera.toScreen(anchor) + gap;
+                    return Positioned(
+                      left: at.dx,
+                      top: at.dy,
+                      child: FractionalTranslation(
+                        translation: shift,
+                        child: _AgentTag(
+                          agent: agent,
+                          selected: agent.id == controller.selectedAgentId,
+                          // Les bulles se resserrent quand la scène est dézoomée.
+                          compact: scale < 1.6,
+                          onTap: () => controller.selectAgent(agent.id),
+                        ),
+                      ),
+                    );
+                  }(),
           ],
         );
       },
+    );
+  }
+}
+
+/// Étiquettes des départements sur le plateau : une par département, posée
+/// sur sa première salle, avec sa couleur, son nom et son effectif ; les
+/// noms des salles apparaissent quand on zoome.
+class DepartmentTagLayer extends StatelessWidget {
+  const DepartmentTagLayer({
+    required this.camera,
+    required this.geometry,
+    required this.presentOf,
+    super.key,
+  });
+
+  final OfficeCamera camera;
+  final PlanGeometry geometry;
+
+  /// Agents présents d'un département.
+  final int Function(String departmentId) presentOf;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: camera,
+      builder: (context, _) {
+        final detailed = camera.scale >= 1.6;
+        // De loin, le nom du département suffit.
+        final far = camera.scale < 0.9;
+        final seen = <String>{};
+        return Stack(
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            for (final tag in geometry.tags)
+              if (tag.department == null
+                  ? detailed
+                  : (seen.add(tag.department!.id) || detailed))
+                () {
+                  final at = camera.toScreen(tag.anchor);
+                  final department = tag.department;
+                  return Positioned(
+                    left: at.dx,
+                    top: at.dy,
+                    child: FractionalTranslation(
+                      translation: const Offset(0, -1),
+                      child: IgnorePointer(
+                        child: _DepartmentTag(
+                          title: department?.name ?? tag.room.label,
+                          detail: department == null || far
+                              ? null
+                              : (detailed
+                                    ? tag.room.label
+                                    : '${presentOf(department.id)} présent'
+                                          '${presentOf(department.id) > 1 ? 's' : ''}'
+                                          ' · ${department.headcount} postes'),
+                          color: department == null
+                              ? LdColors.textMuted
+                              : Color(department.color),
+                        ),
+                      ),
+                    ),
+                  );
+                }(),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _DepartmentTag extends StatelessWidget {
+  const _DepartmentTag({required this.title, required this.color, this.detail});
+
+  final String title;
+  final String? detail;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final detail = this.detail;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 4, 10, 5),
+      decoration: BoxDecoration(
+        color: const Color(0xE6141312),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.7)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 7),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Text(
+                title,
+                style: const TextStyle(
+                  color: LdColors.text,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  height: 1.2,
+                ),
+              ),
+              if (detail != null)
+                Text(
+                  detail,
+                  style: const TextStyle(
+                    color: LdColors.textMuted,
+                    fontSize: 11,
+                    height: 1.2,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -378,6 +520,22 @@ class MapControlBar extends StatelessWidget {
             label: 'Vitesse ${controller.speed}x',
             tooltip: 'Changer la vitesse de la scène',
             onTap: controller.cycleSpeed,
+          ),
+          _BarButton(
+            label: controller.mode == OfficeViewMode.plateau
+                ? 'Vue : Plateau'
+                : 'Vue : Salle',
+            tooltip: controller.mode == OfficeViewMode.plateau
+                ? 'Voir la salle en détail'
+                : 'Voir tout le bureau',
+            onTap: controller.toggleMode,
+            leading: Icon(
+              controller.mode == OfficeViewMode.plateau
+                  ? Icons.grid_view
+                  : Icons.crop_square,
+              size: 17,
+              color: const Color(0xFFB7B2AA),
+            ),
           ),
           const _BarButton(
             label: 'Thème : Bureau',

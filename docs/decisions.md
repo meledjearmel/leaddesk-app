@@ -64,6 +64,31 @@ Chaque entrée : décision, raison, alternatives. Les décisions communes aux de
 - **Raison** : la chaîne de compilation Windows manque toujours sur le poste (D-005) ; la capture permet de comparer l'écran aux images de référence avant de commiter, comme le demande le `CLAUDE.md`.
 - **Alternatives** : tests « golden » versionnés (fragiles tant que le dessin évolue).
 
+## Salles et aménagement du bureau
+
+### D-010 · Catalogue des salles, plan d'aménagement, un département par salle
+
+- **Décision** : `lib/office/` contient le catalogue des types de salle (les 27 salles demandées par Armel le 15 novembre 2026 et 18 salles proposées en plus), le plan d'aménagement (`OfficePlan`, enregistrable en JSON) et ses règles de validation. Règle centrale, demandée par Armel : **deux départements ne partagent jamais une salle** ; seuls les lieux communs (accueil, café, sanitaires…) n'ont pas de département. Autres règles : salle dans le plan, taille minimale du type, assez de postes pour l'effectif.
+- **RM-03** : les salles ne nomment aucun département ; elles servent des activités (étiquettes `code`, `tests`, `recrutement`…). Un test le vérifie.
+- **Raison** : le plan de réalisation (phase 5) prévoit déjà « une salle par unité, couleur par département » et la conception du studio virtuel un aménagement par zones (Technique près de Qualité et sécurité, RH et Finances au calme).
+- **Alternatives** : une seule scène dessinée à la main (impossible à faire évoluer avec l'organisation).
+
+### D-011 · Aménageur automatique et plateau
+
+- **Décision** : `OfficePlanner` choisit les salles de chaque département d'après ses activités et son effectif (salle de travail, plus jusqu'à deux salles spécialisées), ajoute les lieux communs selon la taille de l'entreprise, enchaîne les départements qui partagent des activités, place les départements calmes au bout, et choisit le nombre d'ailes qui donne un plateau à peu près carré. Le plateau est dessiné par `plan_scene.dart`, avec le même mobilier que la salle de référence (extrait dans `furniture.dart`) et un liseré à la couleur de chaque département. La carte s'ouvre sur le plateau ; « Vue : Salle » montre la salle détaillée de référence.
+- **Raison** : demande d'Armel du 15 novembre 2026 ; c'est aussi la solution de repli quand aucune IA d'aménagement n'est disponible.
+- **Limites** : les départements viennent du modèle studio (`studio_template.dart`), pas encore de l'API ; le CEO ne peut pas encore déplacer une salle à la main.
+
+### Proposition P-001 · IA d'aménagement reliée au serveur MCP (à valider par Armel)
+
+Comme la RH propose des agents, une IA proposerait l'aménagement. Contrat proposé, côté `leaddesk-api`, dans le MCP interne prévu en phase 6 (`laravel/mcp` est déjà installé) :
+
+- outil `office.context` : départements (unités), effectifs, postes vacants, types d'activité, catalogue des salles, plan actuel ;
+- outil `office.propose_plan` : reçoit un plan au format `OfficePlan.toJson()`, le valide avec les mêmes règles que l'application, l'enregistre comme **proposition** et renvoie les problèmes éventuels ;
+- le CEO accepte ou refuse la proposition dans l'application ; le plan accepté est conservé sur le serveur (l'aménagement fait partie des designs synchronisés de `CONTEXTE_LEADDESK_CLAUDE_CODE.md`).
+
+Questions ouvertes pour Armel : qui peut proposer un aménagement (une IA dédiée, un poste « Services généraux », la RH ?) ; le CEO doit-il approuver chaque réaménagement ; un réaménagement est-il déclenché automatiquement (embauche, nouveau département) ?
+
 ## Propositions de mise à jour des documents de conception
 
 - `Synthese_decisions_fonctionnelles_V1.md` : y reporter les approches retenues (D-006), comme le demande le critère de fin de la phase 0.

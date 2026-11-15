@@ -6,20 +6,30 @@ import 'package:flutter/painting.dart';
 import 'scene/iso.dart';
 import 'scene/office_scene.dart';
 
-/// Cadrage de la scène : déplacement et zoom, toujours bornés pour que la
-/// scène remplisse la vue (aucun vide sur les bords).
+/// Cadrage de la scène : déplacement et zoom, toujours bornés.
+///
+/// Deux cadrages de départ : « couvrir » (la scène remplit la vue, sans
+/// vide sur les bords : vue détaillée d'une salle) et « contenir » (toute la
+/// scène est visible : plateau entier). Dès qu'on zoome, la scène ne laisse
+/// plus de vide que dans la direction où elle est plus petite que la vue.
 class OfficeCamera extends ChangeNotifier {
   static const double minZoom = 1;
   static const double maxZoom = 4;
   static const double zoomStep = 1.25;
 
   Size _viewport = Size.zero;
+  Size _scene = const Size(sceneWidth, sceneHeight);
+  Offset _focus = OfficeLayout.focus;
+  bool _contain = false;
   double _zoom = 1;
   Offset _center = OfficeLayout.focus;
 
   Size get viewport => _viewport;
 
-  /// Zoom relatif au cadrage minimal (1 = la scène couvre juste la vue).
+  /// Taille de la scène, en pixels d'art.
+  Size get scene => _scene;
+
+  /// Zoom relatif au cadrage de départ.
   double get zoom => _zoom;
 
   /// Point de la scène placé au centre de la vue, en pixels d'art.
@@ -30,11 +40,9 @@ class OfficeCamera extends ChangeNotifier {
     if (_viewport.isEmpty) {
       return 1;
     }
-    final cover = max(
-      _viewport.width / sceneWidth,
-      _viewport.height / sceneHeight,
-    );
-    return cover * _zoom;
+    final sx = _viewport.width / _scene.width;
+    final sy = _viewport.height / _scene.height;
+    return (_contain ? min(sx, sy) : max(sx, sy)) * _zoom;
   }
 
   /// Partie de la scène visible, en pixels d'art.
@@ -43,6 +51,22 @@ class OfficeCamera extends ChangeNotifier {
     width: _viewport.width / scale,
     height: _viewport.height / scale,
   );
+
+  /// Change de scène et revient à son cadrage de départ.
+  void setScene(
+    Size scene, {
+    required Offset focus,
+    required bool contain,
+    double initialZoom = 1,
+  }) {
+    _scene = scene;
+    _focus = focus;
+    _contain = contain;
+    _initialZoom = initialZoom.clamp(minZoom, maxZoom);
+    reset();
+  }
+
+  double _initialZoom = 1;
 
   /// Met à jour la taille de la vue. Appelé pendant la mise en page : ne
   /// prévient pas les écouteurs.
@@ -87,10 +111,10 @@ class OfficeCamera extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Revient au cadrage d'ouverture.
+  /// Revient au cadrage de départ.
   void reset() {
-    _zoom = 1;
-    _center = OfficeLayout.focus;
+    _zoom = _initialZoom;
+    _center = _focus;
     _clamp();
     notifyListeners();
   }
@@ -99,11 +123,17 @@ class OfficeCamera extends ChangeNotifier {
     if (_viewport.isEmpty) {
       return;
     }
-    final halfW = _viewport.width / scale / 2;
-    final halfH = _viewport.height / scale / 2;
+    double axis(double value, double half, double extent) {
+      // Scène plus petite que la vue sur cet axe : on la centre.
+      if (half * 2 >= extent) {
+        return extent / 2;
+      }
+      return value.clamp(half, extent - half);
+    }
+
     _center = Offset(
-      _center.dx.clamp(halfW, max(halfW, sceneWidth - halfW)),
-      _center.dy.clamp(halfH, max(halfH, sceneHeight - halfH)),
+      axis(_center.dx, _viewport.width / scale / 2, _scene.width),
+      axis(_center.dy, _viewport.height / scale / 2, _scene.height),
     );
   }
 }

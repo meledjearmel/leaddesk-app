@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import '../app/theme.dart';
 import 'live_office_controller.dart';
 import 'office_camera.dart';
+import 'scene/iso.dart';
+import 'scene/office_scene.dart';
+import 'scene/pixel_people.dart';
+import 'scene/plan_scene.dart';
 import 'widgets/agent_panel.dart';
 import 'widgets/common.dart';
 import 'widgets/conversation_panel.dart';
@@ -28,13 +32,112 @@ class LiveOfficeScreen extends StatefulWidget {
 class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
   final LiveOfficeController _controller = LiveOfficeController();
   final OfficeCamera _camera = OfficeCamera();
-  late final OfficeFrames _frames = OfficeFrames();
+  late final PlanGeometry _geometry = PlanGeometry(
+    _controller.plan,
+    _controller.departments,
+  );
+  OfficeFrames? _roomFrames;
+  OfficeFrames? _plateauFrames;
+  OfficeViewMode? _shownMode;
+
+  /// Pieds des agents sur le plateau : chacun à un poste de son département.
+  late final Map<String, Offset> _plateauFeet = <String, Offset>{
+    for (final department in _controller.departments)
+      for (final (i, agent) in _controller.agentsOf(department.id).indexed)
+        if (_geometry.seats[department.id] case final seats?
+            when i < seats.length)
+          agent.id:
+              _geometry.toImage(seats[i].x, seats[i].y) + const Offset(0, -8),
+  };
+
+  OfficeFrames get _frames => _controller.mode == OfficeViewMode.plateau
+      ? (_plateauFrames ??= OfficeFrames.plateau(_geometry, _occupants()))
+      : (_roomFrames ??= OfficeFrames.detailed());
+
+  /// Personnes assises : les agents de chaque département d'abord, puis des
+  /// collègues jusqu'à l'effectif ; les postes restants sont vacants.
+  Map<String, List<PersonLook>> _occupants() {
+    const looks = <String, PersonLook>{
+      'atlas': OfficeLooks.atlas,
+      'forge': OfficeLooks.forge,
+      'scout': OfficeLooks.scout,
+      'relay': OfficeLooks.relay,
+      'quill': OfficeLooks.quill,
+    };
+    const skins = <Color>[
+      Color(0xFFEBC29A),
+      Color(0xFFA9714B),
+      Color(0xFFD9A47A),
+      Color(0xFF6B4A32),
+    ];
+    const hairs = <Color>[
+      Color(0xFF2B1F1C),
+      Color(0xFF4A2E1E),
+      Color(0xFF8A6A4A),
+    ];
+    var n = 0;
+    return <String, List<PersonLook>>{
+      for (final department in _controller.departments)
+        department.id: () {
+          final people = <PersonLook>[
+            for (final agent in _controller.agentsOf(department.id))
+              looks[agent.id] ?? OfficeLooks.forge,
+          ];
+          while (people.length < department.headcount) {
+            n++;
+            people.add(
+              PersonLook(
+                skin: skins[n % skins.length],
+                hair: hairs[(n * 2) % hairs.length],
+                top: shade(Color(department.color), 0.75),
+                longHair: n % 3 == 0,
+              ),
+            );
+          }
+          return people;
+        }(),
+    };
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _syncScene();
+    _controller.addListener(_syncScene);
+  }
+
+  /// Change la scène de la caméra quand on passe du plateau à la salle.
+  void _syncScene() {
+    final mode = _controller.mode;
+    if (mode == _shownMode) {
+      return;
+    }
+    _shownMode = mode;
+    final plateau = mode == OfficeViewMode.plateau;
+    final size = _frames.size;
+    _camera.setScene(
+      size,
+      focus: plateau ? size.center(Offset.zero) : OfficeLayout.focus,
+      contain: plateau,
+      // Le plateau s'ouvre à mi-distance : lisible, le reste se parcourt.
+      initialZoom: plateau ? 1.6 : 1,
+    );
+  }
+
+  Offset? _feetOf(String agentId, double time) {
+    return _controller.mode == OfficeViewMode.plateau
+        ? _plateauFeet[agentId]
+        : roomFeet(agentId, time);
+  }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller
+      ..removeListener(_syncScene)
+      ..dispose();
     _camera.dispose();
-    _frames.dispose();
+    _roomFrames?.dispose();
+    _plateauFrames?.dispose();
     super.dispose();
   }
 
@@ -105,7 +208,18 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                   camera: _camera,
                   frames: _frames,
                 ),
-                AgentTagLayer(controller: _controller, camera: _camera),
+                if (_controller.mode == OfficeViewMode.plateau)
+                  DepartmentTagLayer(
+                    camera: _camera,
+                    geometry: _geometry,
+                    presentOf: (id) => _controller.agentsOf(id).length,
+                  ),
+                AgentTagLayer(
+                  controller: _controller,
+                  camera: _camera,
+                  feetOf: _feetOf,
+                  uniformPlacement: _controller.mode == OfficeViewMode.plateau,
+                ),
                 Positioned(
                   top: 12,
                   left: 12,
@@ -137,10 +251,8 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                           time: _controller.sceneTime,
                           markers: (time) => <(Offset, Color)>[
                             for (final agent in _controller.agents)
-                              (
-                                agentFeet(agent.id, time),
-                                agent.avatar.background,
-                              ),
+                              if (_feetOf(agent.id, time) case final feet?)
+                                (feet, agent.avatar.background),
                           ],
                         ),
                       ),

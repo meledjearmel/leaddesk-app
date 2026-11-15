@@ -59,3 +59,19 @@ Bilan court de chaque étape et de chaque phase : fait, testé, reste à faire.
 - Écran vu par capture seulement : jamais lancé sous Windows sur le poste (D-005). Le survol, le glisser et la molette sont couverts par les tests de la caméra, pas par un essai à la main.
 - Données de démonstration ; aucun appel à l'API.
 - Les boutons sans fonction derrière eux (rail, « Connecter un agent », « Nouvel objectif », choix du projet) sont affichés mais inactifs.
+
+## Salles et plateau (15 novembre 2026)
+
+**Fait**
+
+- Catalogue de 45 types de salle (les 27 demandés, 18 proposés), plan d'aménagement en JSON avec validation (un département par salle), aménageur automatique (D-010, D-011).
+- Mobilier extrait dans une bibliothèque réutilisable, enrichie (canapé, lits, arcade, gradins, casiers, photocopieur, cabine d'appel, paillasses, chevalets…) ; la salle de référence reste identique au pixel près.
+- Plateau composé à partir du plan : salles vitrées, liseré et étiquette par département, postes vacants visibles, lieux communs en bout d'aile. Bascule « Vue : Plateau / Salle ».
+
+**Testé**
+
+- 74 tests verts, analyse stricte sans alerte ; captures du plateau à 2 et 6 personnes par département et de l'écran en 1440 et 1920.
+
+**Reste à faire**
+
+- IA d'aménagement par le MCP (proposition P-001, à valider) ; départements et plan venant de l'API ; déplacement des salles par le CEO.

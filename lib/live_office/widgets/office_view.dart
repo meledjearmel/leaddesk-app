@@ -6,9 +6,9 @@ import 'package:flutter/scheduler.dart';
 
 import '../live_office_controller.dart';
 import '../office_camera.dart';
-import '../scene/iso.dart';
 import '../scene/office_scene.dart';
 import '../scene/pixel_people.dart';
+import '../scene/plan_scene.dart';
 
 /// Images d'ambiance par seconde de scène.
 const double _framesPerSecond = 3;
@@ -16,12 +16,29 @@ const double _framesPerSecond = 3;
 /// Images de la scène, rendues une fois puis partagées entre la vue et la
 /// minicarte.
 class OfficeFrames {
-  OfficeFrames()
-    : images = <ui.Image>[
-        for (var i = 0; i < officeFrameCount; i++) renderOfficeFrame(i),
-      ];
+  OfficeFrames._(this.images, {required this.showWalker});
+
+  /// Vue détaillée : la salle de référence, avec l'agent qui marche.
+  factory OfficeFrames.detailed() => OfficeFrames._(<ui.Image>[
+    for (var i = 0; i < officeFrameCount; i++) renderOfficeFrame(i),
+  ], showWalker: true);
+
+  /// Plateau : le bureau entier, composé à partir du plan d'aménagement.
+  factory OfficeFrames.plateau(
+    PlanGeometry geometry,
+    Map<String, List<PersonLook>> occupants,
+  ) => OfficeFrames._(<ui.Image>[
+    for (var i = 0; i < officeFrameCount; i++)
+      renderPlanFrame(geometry, occupants: occupants, frame: i),
+  ], showWalker: false);
 
   final List<ui.Image> images;
+
+  /// Vrai si l'agent qui fait les cent pas est dessiné par-dessus.
+  final bool showWalker;
+
+  Size get size =>
+      Size(images.first.width.toDouble(), images.first.height.toDouble());
 
   ui.Image at(double sceneTime) {
     return images[(sceneTime * _framesPerSecond).floor() % images.length];
@@ -137,6 +154,11 @@ class _OfficePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final origin = camera.toScreen(Offset.zero);
+    // Même fond que la scène : le plateau entier se fond dans la vue.
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xFF0B0908),
+    );
     canvas
       ..save()
       ..clipRect(Offset.zero & size)
@@ -148,16 +170,18 @@ class _OfficePainter extends CustomPainter {
         Offset.zero,
         Paint()..filterQuality = FilterQuality.none,
       );
-    final walker = OfficeLayout.walkerAt(time.value);
-    drawPerson(
-      canvas,
-      walker.feet,
-      OfficeLooks.relay,
-      pose: walker.walking ? PersonPose.walk : PersonPose.stand,
-      faceLeft: walker.faceLeft,
-      step: walker.step,
-      paper: true,
-    );
+    if (frames.showWalker) {
+      final walker = OfficeLayout.walkerAt(time.value);
+      drawPerson(
+        canvas,
+        walker.feet,
+        OfficeLooks.relay,
+        pose: walker.walking ? PersonPose.walk : PersonPose.stand,
+        faceLeft: walker.faceLeft,
+        step: walker.step,
+        paper: true,
+      );
+    }
     canvas.restore();
   }
 
@@ -190,9 +214,10 @@ class OfficeMinimap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const size = Size(width, width * sceneHeight / sceneWidth);
+    final scene = frames.size;
+    final size = Size(width, width * scene.height / scene.width);
     void moveTo(Offset local) {
-      camera.centerOn(local * (sceneWidth / width));
+      camera.centerOn(local * (scene.width / width));
     }
 
     return Semantics(
@@ -229,11 +254,12 @@ class _MinimapPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final ratio = size.width / sceneWidth;
+    final scene = frames.size;
+    final ratio = size.width / scene.width;
     canvas
       ..drawImageRect(
         frames.images.first,
-        const Rect.fromLTWH(0, 0, sceneWidth, sceneHeight),
+        Offset.zero & scene,
         Offset.zero & size,
         Paint()..filterQuality = FilterQuality.low,
       )

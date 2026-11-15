@@ -15,7 +15,11 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:leaddesk_app/live_office/scene/office_scene.dart';
+import 'package:leaddesk_app/live_office/scene/pixel_people.dart';
+import 'package:leaddesk_app/live_office/scene/plan_scene.dart';
 import 'package:leaddesk_app/main.dart';
+import 'package:leaddesk_app/office/office_planner.dart';
+import 'package:leaddesk_app/office/studio_template.dart';
 
 Future<void> _loadFont(String family, List<String> paths) async {
   final loader = FontLoader(family);
@@ -47,6 +51,42 @@ void main() {
       image.dispose();
     });
   });
+
+  for (final headcount in const <int>[2, 6]) {
+    testWidgets(
+      'capture le plan du studio à $headcount par département',
+      skip: skip,
+      (tester) async {
+        await tester.runAsync(() async {
+          final departments = studioDepartments(headcount: headcount);
+          final geometry = PlanGeometry(
+            const OfficePlanner().plan(departments),
+            departments,
+          );
+          final image = renderPlanFrame(
+            geometry,
+            occupants: <String, List<PersonLook>>{
+              for (final d in departments)
+                d.id: <PersonLook>[
+                  for (var i = 0; i < d.headcount - 1; i++)
+                    PersonLook(
+                      skin: const <Color>[
+                        Color(0xFFEBC29A),
+                        Color(0xFFA9714B),
+                        Color(0xFFD9A47A),
+                      ][i % 3],
+                      hair: const Color(0xFF2B1F1C),
+                      top: Color(d.color),
+                    ),
+                ],
+            },
+          );
+          await _writePng(image, '$dir/plan_$headcount.png');
+          image.dispose();
+        });
+      },
+    );
+  }
 
   for (final size in const <Size>[Size(1440, 900), Size(1920, 1080)]) {
     testWidgets('capture l\'écran en ${size.width.toInt()}', skip: skip, (

@@ -1,6 +1,18 @@
 import 'package:flutter/foundation.dart';
 
+import '../office/office_plan.dart';
+import '../office/office_planner.dart';
+import '../office/studio_template.dart';
 import 'models.dart';
+
+/// Ce que montre la carte.
+enum OfficeViewMode {
+  /// Le bureau entier : une ou plusieurs salles par département.
+  plateau,
+
+  /// La salle détaillée de référence.
+  room,
+}
 
 /// État de l'écran du bureau vivant : sélection, panneaux, simulation,
 /// conversation ouverte.
@@ -9,8 +21,32 @@ class LiveOfficeController extends ChangeNotifier {
     this.agents = DemoData.agents,
     List<ChatEntry> conversation = DemoData.conversation,
     DateTime Function() now = DateTime.now,
+    List<OfficeDepartment>? departments,
   }) : _entries = List<ChatEntry>.of(conversation),
-       _clock = now;
+       _clock = now,
+       departments = departments ?? studioDepartments() {
+    plan = const OfficePlanner().plan(this.departments);
+  }
+
+  /// Départements de l'entreprise, tels que l'aménagement les voit.
+  final List<OfficeDepartment> departments;
+
+  /// Plan d'aménagement en vigueur.
+  late OfficePlan plan;
+
+  OfficeViewMode _mode = OfficeViewMode.plateau;
+  OfficeViewMode get mode => _mode;
+
+  void toggleMode() {
+    _mode = _mode == OfficeViewMode.plateau
+        ? OfficeViewMode.room
+        : OfficeViewMode.plateau;
+    notifyListeners();
+  }
+
+  /// Agents d'un département, dans l'ordre de la liste.
+  List<OfficeAgent> agentsOf(String departmentId) =>
+      agents.where((a) => a.departmentId == departmentId).toList();
 
   /// Vitesses proposées par la barre de contrôle.
   static const List<int> speeds = <int>[1, 2, 4];

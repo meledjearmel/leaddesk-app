@@ -122,6 +122,22 @@ void main() {
     expect(find.text('Atlas, Quill et vous'), findsOneWidget);
   });
 
+  testWidgets('la carte s\'ouvre sur le plateau, un département par salle, '
+      'et bascule sur la salle détaillée', (tester) async {
+    await _pumpApp(tester, desktop);
+
+    expect(find.text('Vue : Plateau'), findsOneWidget);
+    expect(find.text('Technique'), findsOneWidget);
+    expect(find.text('Qualité et sécurité'), findsOneWidget);
+
+    await tester.tap(find.text('Vue : Plateau'));
+    await tester.pump();
+
+    expect(find.text('Vue : Salle'), findsOneWidget);
+    expect(find.text('Technique'), findsNothing);
+    expect(find.text('Forge'), findsWidgets);
+  });
+
   testWidgets('le panneau des agents se replie', (tester) async {
     await _pumpApp(tester, desktop);
 

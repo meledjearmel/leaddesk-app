@@ -48,6 +48,7 @@ class OfficeAgent {
     required this.provider,
     required this.avatar,
     required this.tagPlacement,
+    required this.departmentId,
     this.working = false,
     this.inConversation = false,
     this.tagDetail,
@@ -66,6 +67,9 @@ class OfficeAgent {
   final AgentProvider provider;
   final AvatarStyle avatar;
   final TagPlacement tagPlacement;
+
+  /// Département de l'agent : il travaille dans les salles de celui-ci.
+  final String departmentId;
 
   /// Vrai quand l'agent exécute une tâche : pastille verte.
   final bool working;
@@ -122,6 +126,7 @@ abstract final class DemoData {
   static const List<OfficeAgent> agents = <OfficeAgent>[
     OfficeAgent(
       id: 'atlas',
+      departmentId: 'produit',
       name: 'Atlas',
       position: 'Chef de projet',
       status: 'En conversation avec vous',
@@ -140,6 +145,7 @@ abstract final class DemoData {
     ),
     OfficeAgent(
       id: 'forge',
+      departmentId: 'technique',
       name: 'Forge',
       position: 'Développeur',
       status: 'Écrit du code · étape 14 sur 22',
@@ -155,6 +161,7 @@ abstract final class DemoData {
     ),
     OfficeAgent(
       id: 'scout',
+      departmentId: 'technique',
       name: 'Scout',
       position: 'Développeur',
       status: 'Lit l\'API de publication',
@@ -171,6 +178,7 @@ abstract final class DemoData {
     ),
     OfficeAgent(
       id: 'relay',
+      departmentId: 'qualite',
       name: 'Relay',
       position: 'Testeur QA',
       status: 'Attend de tester le build',
@@ -185,6 +193,7 @@ abstract final class DemoData {
     ),
     OfficeAgent(
       id: 'quill',
+      departmentId: 'contenu',
       name: 'Quill',
       position: 'Rédacteur technique',
       status: 'Vous répond',
