@@ -166,6 +166,9 @@ Questions ouvertes pour Armel : qui peut proposer un aménagement (une IA dédi�
 - **Effet** : chaque `company.changed` recharge le bureau (départements, plan, agents, propositions), après 400 ms qui regroupent les rafales. Une proposition des Moyens généraux apparaît donc sans recharger. Si « En direct » est coupé, le rechargement attend sa reprise. L'infobulle de « En direct » donne l'état de la connexion (connecté, connexion, hors ligne).
 - **Portée** : session connectée seulement ; ni la démonstration ni `LD_API_URL` sans serveur Reverb n'en ont besoin. Si Reverb n'est pas configuré, le client reste hors ligne sans gêner le reste.
 - **Limites** : tout est rechargé à chaque changement, sans tri selon la ressource touchée ; c'est simple et suffisant à cette taille.
+### D-021 · Mot de passe oublié dans l'application
+
+- **Décision** : le lien « Mot de passe oublié ? » sous le mot de passe ouvre un écran qui demande l'adresse du serveur et l'e-mail. Il envoie `POST /auth/forgot-password` (API D-041), puis affiche le message du serveur et la marche à suivre : ouvrir le lien reçu, choisir le nouveau mot de passe sur la page web, revenir se connecter. L'adresse du serveur suit d'un écran à l'autre.
 ## Propositions de mise à jour des documents de conception
 
 - `REGLES_METIER_LEADDESK.md` (RM-02) : ajouter qu'une entreprise vierge contient toujours les unités RH et Moyens généraux, chacune avec un poste de responsable sans agent (D-013).

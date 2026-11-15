@@ -74,6 +74,12 @@ MockClient _server({
           'company': null,
         },
       }, 201);
+    case ('POST', 'auth/forgot-password'):
+      return json(<String, Object?>{
+        'message':
+            'Si un compte correspond à cette adresse, un lien de '
+            'réinitialisation vient d\'y être envoyé.',
+      }, 202);
     case ('POST', 'company'):
       final body = jsonDecode(request.body) as Map<String, Object?>;
       return json(<String, Object?>{
@@ -226,6 +232,19 @@ void main() {
       );
     });
 
+    test('D-021 : demander un lien de réinitialisation', () async {
+      final calls = <String>[];
+      final auth = AuthService(httpClient: _server(calls: calls));
+
+      final message = await auth.requestPasswordReset(
+        baseUrl: _base,
+        email: ' ceo@exemple.test ',
+      );
+
+      expect(message, startsWith('Si un compte correspond'));
+      expect(calls, <String>['POST auth/forgot-password -']);
+    });
+
     test('la session se relit telle qu\'elle a été écrite', () async {
       final store = MemorySessionStore();
       final session = Session(
@@ -374,6 +393,33 @@ void main() {
 
       expect(find.text('Bienvenue, Awa'), findsOneWidget);
       expect((await store.read())!.token, '2|new');
+    });
+
+    testWidgets('mot de passe oublié : le lien est envoyé puis retour', (
+      tester,
+    ) async {
+      await _pumpGate(
+        tester,
+        store: MemorySessionStore(),
+        auth: AuthService(httpClient: _server()),
+      );
+      await tester.enterText(find.byType(TextField).at(0), 'api.test');
+      await tester.tap(find.text('Mot de passe oublié ?'));
+      await tester.pump();
+
+      expect(find.text('Envoyer le lien'), findsOneWidget);
+      await tester.enterText(find.byType(TextField).at(1), 'ceo@exemple.test');
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Envoyer le lien'));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await tester.pump();
+
+      expect(find.textContaining('Si un compte correspond'), findsOneWidget);
+      await tester.tap(find.text('Retour à la connexion'));
+      await tester.pump();
+      expect(find.text('Se connecter'), findsOneWidget);
+      expect(find.text('api.test'), findsOneWidget);
     });
 
     testWidgets('la démonstration s\'ouvre sans serveur', (tester) async {

@@ -123,6 +123,20 @@ class AuthService {
     );
   }
 
+  /// Demande un lien de réinitialisation par e-mail (D-021). Le serveur
+  /// répond de la même façon que l'adresse existe ou non ; renvoie son
+  /// message.
+  Future<String> requestPasswordReset({
+    required Uri baseUrl,
+    required String email,
+  }) async {
+    final json = await _client(
+      baseUrl,
+    ).postRaw('auth/forgot-password', <String, Object?>{'email': email.trim()});
+    return json['message'] as String? ??
+        'Si un compte correspond à cette adresse, un lien vient d\'y être envoyé.';
+  }
+
   /// Crée l'entreprise du compte (RM-01 : une seule par compte).
   Future<Session> createCompany(
     Session session, {

@@ -211,6 +211,7 @@ void main() {
                       onSignedIn: (_) {},
                       onDemo: () {},
                       onCreateAccount: (_) {},
+                      onForgotPassword: (_) {},
                     ),
             ),
           ),

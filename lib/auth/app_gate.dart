@@ -39,7 +39,7 @@ class AppGate extends StatefulWidget {
   State<AppGate> createState() => _AppGateState();
 }
 
-enum _Stage { loading, signIn, signUp, setup, office, demo }
+enum _Stage { loading, signIn, signUp, forgot, setup, office, demo }
 
 class _AppGateState extends State<AppGate> {
   _Stage _stage = _Stage.loading;
@@ -146,6 +146,18 @@ class _AppGateState extends State<AppGate> {
         onCreateAccount: (server) => setState(() {
           _lastServer = server;
           _stage = _Stage.signUp;
+        }),
+        onForgotPassword: (server) => setState(() {
+          _lastServer = server;
+          _stage = _Stage.forgot;
+        }),
+      ),
+      _Stage.forgot => ForgotPasswordScreen(
+        auth: widget.auth,
+        initialServer: _lastServer,
+        onBack: (server) => setState(() {
+          _lastServer = server;
+          _stage = _Stage.signIn;
         }),
       ),
       _Stage.signUp => SignUpScreen(

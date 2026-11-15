@@ -287,12 +287,16 @@ class SignInScreen extends StatefulWidget {
     required this.onSignedIn,
     this.onDemo,
     this.onCreateAccount,
+    this.onForgotPassword,
     this.initialServer = '',
     super.key,
   });
 
   final AuthService auth;
   final ValueChanged<Session> onSignedIn;
+
+  /// Ouvre « Mot de passe oublié », avec l'adresse du serveur saisie.
+  final ValueChanged<String>? onForgotPassword;
 
   /// Ouvre la création de compte, avec l'adresse du serveur saisie.
   final ValueChanged<String>? onCreateAccount;
@@ -389,6 +393,17 @@ class _SignInScreenState extends State<SignInScreen> {
             ],
           ),
         ),
+        if (widget.onForgotPassword case final forgot?)
+          Transform.translate(
+            offset: const Offset(0, -8),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: _LinkButton(
+                label: 'Mot de passe oublié ?',
+                onTap: () => forgot(_server.text),
+              ),
+            ),
+          ),
         if (_error case final error?) _ErrorLine(error),
         _PrimaryButton(
           label: _busy ? 'Connexion…' : 'Se connecter',
@@ -410,6 +425,148 @@ class _SignInScreenState extends State<SignInScreen> {
             if (widget.onDemo case final demo?)
               _LinkButton(label: 'Voir la démonstration', onTap: demo),
           ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Mot de passe oublié (D-021) : un lien est envoyé par e-mail ; le nouveau
+/// mot de passe se choisit sur la page web du serveur.
+class ForgotPasswordScreen extends StatefulWidget {
+  const ForgotPasswordScreen({
+    required this.auth,
+    required this.onBack,
+    this.initialServer = '',
+    super.key,
+  });
+
+  final AuthService auth;
+
+  /// Retour à la connexion, avec l'adresse du serveur saisie.
+  final ValueChanged<String> onBack;
+  final String initialServer;
+
+  @override
+  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
+}
+
+class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+  late final TextEditingController _server = TextEditingController(
+    text: widget.initialServer,
+  );
+  final TextEditingController _email = TextEditingController();
+  bool _busy = false;
+  String? _error;
+  String? _sent;
+
+  @override
+  void dispose() {
+    _server.dispose();
+    _email.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final baseUrl = AuthService.normalizeBaseUrl(_server.text);
+    if (baseUrl == null) {
+      setState(() => _error = 'Indiquez l\'adresse du serveur LeadDesk.');
+      return;
+    }
+    if (_email.text.trim().isEmpty) {
+      setState(() => _error = 'Indiquez l\'e-mail de votre compte.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final message = await widget.auth.requestPasswordReset(
+        baseUrl: baseUrl,
+        email: _email.text,
+      );
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _sent = message;
+        });
+      }
+    } on Object catch (failure) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = describeError(failure);
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sent = _sent;
+    return _AuthFrame(
+      title: 'Mot de passe oublié',
+      subtitle: sent == null
+          ? 'Recevez par e-mail un lien pour choisir un nouveau mot de passe.'
+          : 'Ouvrez le lien reçu, choisissez un nouveau mot de passe, puis '
+                'revenez vous connecter.',
+      children: <Widget>[
+        if (sent == null) ...<Widget>[
+          _Field(
+            label: 'Adresse du serveur',
+            controller: _server,
+            hint: 'leaddesk.exemple.com',
+            keyboardType: TextInputType.url,
+          ),
+          _Field(
+            label: 'E-mail',
+            controller: _email,
+            keyboardType: TextInputType.emailAddress,
+            autofillHints: const <String>[AutofillHints.email],
+            autofocus: true,
+            onSubmitted: (_) => _submit(),
+          ),
+          if (_error case final error?) _ErrorLine(error),
+          _PrimaryButton(
+            label: _busy ? 'Envoi…' : 'Envoyer le lien',
+            busy: _busy,
+            onTap: _submit,
+          ),
+        ] else
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 14),
+            decoration: BoxDecoration(
+              color: LdColors.greenSoft,
+              borderRadius: BorderRadius.circular(LdRadius.card),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                const Icon(
+                  Icons.mark_email_read_outlined,
+                  size: 18,
+                  color: LdColors.green,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    sent,
+                    style: const TextStyle(
+                      color: LdColors.text,
+                      fontSize: 13.5,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 8),
+        _LinkButton(
+          label: 'Retour à la connexion',
+          onTap: () => widget.onBack(_server.text),
         ),
       ],
     );

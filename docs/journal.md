@@ -113,3 +113,11 @@ Décisions : D-012, D-013. Ordre : 0 → 1 → 2 → 5 → 3 → 4 → 6. Chaque
 **Testé** : 132 tests verts dans l'application (6 nouveaux, avec une fausse prise WebSocket), 270 dans l'API.
 
 **Reste à faire** : vérifier en conditions réelles (Reverb et le worker de file lancés) ; mot de passe oublié ; moteur d'exécution local.
+
+## Mot de passe oublié (15 novembre 2026)
+
+**Fait** : lien, écran et envoi du lien de réinitialisation (app D-021, API D-041).
+
+**Testé** : 134 tests verts dans l'application, 274 dans l'API ; capture `connexion`.
+
+**Reste à faire** : moteur d'exécution local.
