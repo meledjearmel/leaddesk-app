@@ -12,6 +12,8 @@ Dossier : `C:\Users\armel.meledje\OneDrive\Documents\LeadDeck`
 4. `CONTEXTE_LEADDESK_CLAUDE_CODE.md` — architecture confirmée.
 5. `inspiration_design/` — **regarder chaque image avant tout travail d'interface** ; le rendu doit s'en rapprocher le plus possible (ambiance, composition, proportions, couleurs, détail du pixel art, interactions). S'inspirer sans reproduire : aucun nom, logo, marque ni personnage de ces images ; tous les graphismes sont originaux. Comparer chaque écran terminé aux images avant de commiter.
 
+**Cible visuelle principale du bureau vivant (consigne d'Armel, 15 novembre 2026) :** l'image `04-bureau-pixel-detaille-1.png` — bureau sombre et chaleureux, bois, cloisons vitrées, bibliothèques, plantes, lampes, serveurs, agents à leur poste, très haut niveau de détail. Voir `docs/decisions.md` (D-004).
+
 Ne jamais modifier ces documents : proposer les changements dans `docs/decisions.md`. Ne pas transformer une proposition en décision, ne pas inventer d'exigence.
 
 ## Rôle du dépôt et frontière serveur / application
