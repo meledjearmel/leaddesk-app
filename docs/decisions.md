@@ -105,6 +105,11 @@ Questions ouvertes pour Armel : qui peut proposer un aménagement (une IA dédi�
 - **Raison** : la RH propose les agents et les Moyens généraux proposent l'aménagement (D-012). Sans elles, l'entreprise ne peut ni recruter ni aménager.
 - **Écart avec un document** : RM-02 dit qu'« une entreprise vierge existe sans unité, poste ni agent ». Cette décision en est une exception. Voir les propositions de mise à jour ci-dessous.
 
+### D-014 · Bureau vivant branché sur le serveur
+
+- **Décision** : `ApiOfficeSource` lit sur le serveur les départements d'aménagement (`/office/departments`, avec couleur, effectif et activités), le plan en vigueur (`/office/plan`), les unités, les postes et les agents. Un agent travaille dans les salles du département (unité de premier niveau) de son poste ; un agent sans poste n'est pas au bureau. Le plan du serveur est affiché s'il respecte les règles ; sinon (aucun plan, ou organisation changée depuis), l'aménageur automatique prend le relais. La scène se recompose à chaque nouveau jeu de données.
+- **Connexion provisoire** : tant que l'écran de connexion n'existe pas, l'adresse et le jeton viennent de `LD_API_URL` et `LD_API_TOKEN` (`--dart-define` ou variable du système). Sans eux, ou si le serveur ne répond pas, l'application garde ses données de démonstration.
+- **Limites** : la conversation reste en démonstration ; les portraits des agents du serveur sont attribués à tour de rôle (pas encore de personnage choisi) ; pas encore de mise à jour en temps réel (Reverb).
 ## Propositions de mise à jour des documents de conception
 
 - `REGLES_METIER_LEADDESK.md` (RM-02) : ajouter qu'une entreprise vierge contient toujours les unités RH et Moyens généraux, chacune avec un poste de responsable sans agent (D-013).

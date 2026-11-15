@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../api/api_client.dart';
 import '../app/theme.dart';
 import 'live_office_controller.dart';
 import 'office_camera.dart';
+import 'office_source.dart';
 import 'scene/iso.dart';
 import 'scene/office_scene.dart';
 import 'scene/pixel_people.dart';
@@ -17,7 +21,11 @@ import 'widgets/office_view.dart';
 /// Écran principal : rail d'icônes, panneau des agents, bureau vivant et
 /// panneau de conversation.
 class LiveOfficeScreen extends StatefulWidget {
-  const LiveOfficeScreen({super.key});
+  const LiveOfficeScreen({super.key, this.source});
+
+  /// Source des données ; par défaut le serveur s'il est configuré
+  /// (`LD_API_URL`, `LD_API_TOKEN`), sinon la démonstration.
+  final OfficeSource? source;
 
   /// Largeur à partir de laquelle le panneau des agents tient à l'écran.
   static const double agentPanelBreakpoint = 820;
@@ -32,16 +40,20 @@ class LiveOfficeScreen extends StatefulWidget {
 class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
   final LiveOfficeController _controller = LiveOfficeController();
   final OfficeCamera _camera = OfficeCamera();
-  late final PlanGeometry _geometry = PlanGeometry(
-    _controller.plan,
-    _controller.departments,
-  );
+  late PlanGeometry _geometry = _buildGeometry();
   OfficeFrames? _roomFrames;
   OfficeFrames? _plateauFrames;
   OfficeViewMode? _shownMode;
+  int _shownRevision = 0;
+  ApiClient? _client;
+
+  PlanGeometry _buildGeometry() =>
+      PlanGeometry(_controller.plan, _controller.departments);
 
   /// Pieds des agents sur le plateau : chacun à un poste de son département.
-  late final Map<String, Offset> _plateauFeet = <String, Offset>{
+  late Map<String, Offset> _plateauFeet = _buildFeet();
+
+  Map<String, Offset> _buildFeet() => <String, Offset>{
     for (final department in _controller.departments)
       for (final (i, agent) in _controller.agentsOf(department.id).indexed)
         if (_geometry.seats[department.id] case final seats?
@@ -81,7 +93,13 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
         department.id: () {
           final people = <PersonLook>[
             for (final agent in _controller.agentsOf(department.id))
-              looks[agent.id] ?? OfficeLooks.forge,
+              looks[agent.id] ??
+                  PersonLook(
+                    skin: agent.avatar.skin,
+                    hair: agent.avatar.hair,
+                    top: agent.avatar.top,
+                    longHair: agent.avatar.longHair,
+                  ),
           ];
           while (people.length < department.headcount) {
             n++;
@@ -104,13 +122,34 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
     super.initState();
     _syncScene();
     _controller.addListener(_syncScene);
+    final source = widget.source ?? _defaultSource();
+    if (source != null) {
+      unawaited(_controller.load(source));
+    }
   }
 
-  /// Change la scène de la caméra quand on passe du plateau à la salle.
+  OfficeSource? _defaultSource() {
+    final config = ApiConfig.fromEnvironment();
+    if (config == null) {
+      return null;
+    }
+    return ApiOfficeSource(_client = ApiClient(config));
+  }
+
+  /// Change la scène de la caméra quand on passe du plateau à la salle, et
+  /// recompose le plateau quand les données changent.
   void _syncScene() {
     final mode = _controller.mode;
-    if (mode == _shownMode) {
+    final revision = _controller.revision;
+    if (mode == _shownMode && revision == _shownRevision) {
       return;
+    }
+    if (revision != _shownRevision) {
+      _shownRevision = revision;
+      _geometry = _buildGeometry();
+      _plateauFeet = _buildFeet();
+      _plateauFrames?.dispose();
+      _plateauFrames = null;
     }
     _shownMode = mode;
     final plateau = mode == OfficeViewMode.plateau;
@@ -138,6 +177,7 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
     _camera.dispose();
     _roomFrames?.dispose();
     _plateauFrames?.dispose();
+    _client?.close();
     super.dispose();
   }
 

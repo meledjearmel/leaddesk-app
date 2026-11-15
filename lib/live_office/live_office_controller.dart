@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 
+import '../api/api_client.dart';
 import '../office/office_plan.dart';
 import '../office/office_planner.dart';
 import '../office/studio_template.dart';
 import 'models.dart';
+import 'office_source.dart';
 
 /// Ce que montre la carte.
 enum OfficeViewMode {
@@ -18,21 +20,71 @@ enum OfficeViewMode {
 /// conversation ouverte.
 class LiveOfficeController extends ChangeNotifier {
   LiveOfficeController({
-    this.agents = DemoData.agents,
+    List<OfficeAgent>? agents,
     List<ChatEntry> conversation = DemoData.conversation,
     DateTime Function() now = DateTime.now,
     List<OfficeDepartment>? departments,
   }) : _entries = List<ChatEntry>.of(conversation),
        _clock = now,
-       departments = departments ?? studioDepartments() {
-    plan = const OfficePlanner().plan(this.departments);
+       _agents = agents ?? DemoData.agents,
+       _departments = departments ?? studioDepartments() {
+    _plan = const OfficePlanner().plan(_departments);
   }
 
-  /// Départements de l'entreprise, tels que l'aménagement les voit.
-  final List<OfficeDepartment> departments;
+  List<OfficeDepartment> _departments;
+  late OfficePlan _plan;
+  List<OfficeAgent> _agents;
+  int _revision = 0;
+  bool _fromServer = false;
+  String? _loadError;
 
-  /// Plan d'aménagement en vigueur.
-  late OfficePlan plan;
+  /// Départements de l'entreprise, tels que l'aménagement les voit.
+  List<OfficeDepartment> get departments => _departments;
+
+  /// Plan d'aménagement affiché : celui en vigueur sur le serveur, ou celui
+  /// de l'aménageur automatique.
+  OfficePlan get plan => _plan;
+
+  /// Agents installés au bureau.
+  List<OfficeAgent> get agents => _agents;
+
+  /// Augmente à chaque nouveau jeu de données : la scène se recompose.
+  int get revision => _revision;
+
+  /// Vrai quand les données viennent du serveur.
+  bool get fromServer => _fromServer;
+
+  /// Dernière erreur de chargement, en français ; `null` si tout va bien.
+  String? get loadError => _loadError;
+
+  /// Remplace les départements, le plan et les agents.
+  void apply(OfficeSnapshot snapshot, {bool fromServer = false}) {
+    _departments = snapshot.departments;
+    _plan = snapshot.plan;
+    _agents = snapshot.agents;
+    _fromServer = fromServer;
+    _loadError = null;
+    _revision++;
+    if (_selectedAgentId != null &&
+        !_agents.any((agent) => agent.id == _selectedAgentId)) {
+      _selectedAgentId = _agents.isEmpty ? null : _agents.first.id;
+    }
+    notifyListeners();
+  }
+
+  /// Charge les données d'une source ; en cas d'échec, garde celles qui sont
+  /// affichées et retient l'erreur.
+  Future<void> load(OfficeSource source, {bool fromServer = true}) async {
+    try {
+      apply(await source.load(), fromServer: fromServer);
+    } on ApiException catch (error) {
+      _loadError = error.message;
+      notifyListeners();
+    } on Exception {
+      _loadError = 'Serveur injoignable : données de démonstration.';
+      notifyListeners();
+    }
+  }
 
   OfficeViewMode _mode = OfficeViewMode.plateau;
   OfficeViewMode get mode => _mode;
@@ -51,7 +103,6 @@ class LiveOfficeController extends ChangeNotifier {
   /// Vitesses proposées par la barre de contrôle.
   static const List<int> speeds = <int>[1, 2, 4];
 
-  final List<OfficeAgent> agents;
   final List<ChatEntry> _entries;
   final DateTime Function() _clock;
 
@@ -76,7 +127,17 @@ class LiveOfficeController extends ChangeNotifier {
   bool get agentPanelOpen => _agentPanelOpen;
   bool get conversationOpen => _conversationOpen;
 
-  OfficeAgent agentById(String id) => agents.firstWhere((a) => a.id == id);
+  /// Agent par identifiant. La conversation reste en démonstration tant
+  /// qu'elle n'est pas lue sur le serveur : ses agents sont cherchés aussi
+  /// parmi ceux de la démonstration.
+  OfficeAgent agentById(String id) {
+    for (final agent in _agents) {
+      if (agent.id == id) {
+        return agent;
+      }
+    }
+    return DemoData.agents.firstWhere((a) => a.id == id);
+  }
 
   /// Agents correspondant à la recherche, regroupés par poste dans l'ordre
   /// de la liste.

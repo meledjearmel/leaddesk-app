@@ -82,7 +82,7 @@ Décisions : D-012, D-013. Ordre : 0 → 1 → 2 → 5 → 3 → 4 → 6. Chaque
 
 0. API : unités système RH et Moyens généraux (`system_role`), créées avec chaque entreprise et impossibles à supprimer. **Fait** (API D-034, 223 tests verts).
 1. API : plans d'aménagement sur le serveur (`office_plans`, versions, états, validateur PHP identique à celui de l'app, catalogue servi par l'API, routes accepter / refuser / modifier, audit, Reverb). **Fait** (API D-036, 246 tests verts). Côté app : test de parité avec le serveur (catalogue et cas de validation), et `OfficePlan.validate` ne plante plus sur un type de salle inconnu. Le catalogue compte 44 types (27 demandés, 17 proposés), et non 45.
-2. App : départements, postes et agents lus depuis l'API ; le plateau charge le plan accepté.
+2. App : départements, postes et agents lus depuis l'API ; le plateau charge le plan accepté. **Fait** (app D-014, API D-037 : activités des unités ; 87 tests verts dans l'app, 248 dans l'API ; écran de démonstration inchangé à la capture).
 5. App : écran de validation de la proposition (comparaison, motif, problèmes, Accepter / Refuser).
 3. API : MCP interne, outils `office.context` et `office.propose_plan`, permission donnée au poste des Moyens généraux, proposition → `Decision` en attente.
 4. API : déclenchement automatique (embauche, nouvelle unité, capacité dépassée), demandes regroupées.
