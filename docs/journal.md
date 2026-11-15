@@ -85,5 +85,5 @@ Décisions : D-012, D-013. Ordre : 0 → 1 → 2 → 5 → 3 → 4 → 6. Chaque
 2. App : départements, postes et agents lus depuis l'API ; le plateau charge le plan accepté. **Fait** (app D-014, API D-037 : activités des unités ; 87 tests verts dans l'app, 248 dans l'API ; écran de démonstration inchangé à la capture).
 5. App : écran de validation de la proposition (comparaison, motif, problèmes, Accepter / Refuser). **Fait** (D-015 ; 98 tests verts ; captures `proposition_bandeau` et `proposition_apercu` comparées aux images 06, 07 et 09).
 3. API : MCP interne, outils `office.context` et `office.propose_plan`, permission donnée au poste des Moyens généraux, proposition → `Decision` en attente. **Fait** (API D-038, `/mcp/leaddesk` ; 259 tests verts). L'application n'appelle pas encore le MCP : ce sera le rôle du moteur d'exécution des agents.
-4. API : déclenchement automatique (embauche, nouvelle unité, capacité dépassée), demandes regroupées.
+4. API : déclenchement automatique (embauche, nouvelle unité, capacité dépassée), demandes regroupées. **Fait** (API D-039 : mission `office_layout` au poste qui a l'outil ; 267 tests verts).
 6. App : mode « Aménager » (glisser, ajouter, retirer, attribuer, validation en direct, annulation) ; une proposition en attente devient « périmée ».
