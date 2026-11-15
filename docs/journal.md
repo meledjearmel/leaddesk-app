@@ -75,3 +75,15 @@ Bilan court de chaque étape et de chaque phase : fait, testé, reste à faire.
 **Reste à faire**
 
 - IA d'aménagement par le MCP (proposition P-001, à valider) ; départements et plan venant de l'API ; déplacement des salles par le CEO.
+
+## Gestion des salles et aménagement par le MCP : plan de travail (validé le 15 novembre 2026)
+
+Décisions : D-012, D-013. Ordre : 0 → 1 → 2 → 5 → 3 → 4 → 6. Chaque étape se termine par une revue, des tests verts et un commit dans chaque dépôt touché.
+
+0. API : unités système RH et Moyens généraux (`system_role`), créées avec chaque entreprise et impossibles à supprimer. **Fait** (API D-034, 223 tests verts).
+1. API : plans d'aménagement sur le serveur (`office_plans`, versions, états, validateur PHP identique à celui de l'app, catalogue servi par l'API, routes accepter / refuser / modifier, audit, Reverb).
+2. App : départements, postes et agents lus depuis l'API ; le plateau charge le plan accepté.
+5. App : écran de validation de la proposition (comparaison, motif, problèmes, Accepter / Refuser).
+3. API : MCP interne, outils `office.context` et `office.propose_plan`, permission donnée au poste des Moyens généraux, proposition → `Decision` en attente.
+4. API : déclenchement automatique (embauche, nouvelle unité, capacité dépassée), demandes regroupées.
+6. App : mode « Aménager » (glisser, ajouter, retirer, attribuer, validation en direct, annulation) ; une proposition en attente devient « périmée ».

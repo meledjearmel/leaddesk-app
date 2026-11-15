@@ -87,9 +87,27 @@ Comme la RH propose des agents, une IA proposerait l'aménagement. Contrat propo
 - outil `office.propose_plan` : reçoit un plan au format `OfficePlan.toJson()`, le valide avec les mêmes règles que l'application, l'enregistre comme **proposition** et renvoie les problèmes éventuels ;
 - le CEO accepte ou refuse la proposition dans l'application ; le plan accepté est conservé sur le serveur (l'aménagement fait partie des designs synchronisés de `CONTEXTE_LEADDESK_CLAUDE_CODE.md`).
 
-Questions ouvertes pour Armel : qui peut proposer un aménagement (une IA dédiée, un poste « Services généraux », la RH ?) ; le CEO doit-il approuver chaque réaménagement ; un réaménagement est-il déclenché automatiquement (embauche, nouveau département) ?
+Questions ouvertes pour Armel : qui peut proposer un aménagement (une IA dédiée, un poste « Services généraux », la RH ?) ; le CEO doit-il approuver chaque réaménagement ; un réaménagement est-il déclenché automatiquement (embauche, nouveau département) ? Réponses le 15 novembre 2026 : voir D-012.
+
+### D-012 · Qui propose, qui approuve, quand (réponses d'Armel à P-001)
+
+- **Décision** (Armel, 15 novembre 2026) :
+  - un **poste des Moyens généraux** propose les aménagements. Rien n'est codé en dur : la permission d'outil `office.propose_plan` est donnée au poste ;
+  - le **CEO approuve chaque réaménagement**, sans exception : une proposition ne s'applique qu'après son accord ;
+  - le réaménagement se **déclenche tout seul** : une embauche, un nouveau département ou un effectif qui ne tient plus dans le plan crée une demande de proposition. Rien ne s'applique sans le CEO.
+- **Conséquence** : P-001 devient le contrat de travail de la gestion des salles (plan de travail dans `journal.md`).
+- **Modification manuelle** : si le CEO modifie le plan alors qu'une proposition attend, la proposition est marquée « périmée ». Elle reste visible, et le CEO peut en demander une nouvelle fondée sur son plan.
+
+### D-013 · RH et Moyens généraux toujours présents
+
+- **Décision** (Armel, 15 novembre 2026) : toute entreprise, même vierge, naît avec deux unités, **RH** et **Moyens généraux**. Chacune contient un poste de responsable sans agent. Ces deux unités ne peuvent pas être supprimées ; leur nom et leur couleur restent modifiables.
+- **Mise en œuvre** : un champ `system_role` (`hr`, `facilities`) sur l'unité. Le code s'appuie sur ce rôle, jamais sur le nom (RM-03).
+- **Raison** : la RH propose les agents et les Moyens généraux proposent l'aménagement (D-012). Sans elles, l'entreprise ne peut ni recruter ni aménager.
+- **Écart avec un document** : RM-02 dit qu'« une entreprise vierge existe sans unité, poste ni agent ». Cette décision en est une exception. Voir les propositions de mise à jour ci-dessous.
 
 ## Propositions de mise à jour des documents de conception
+
+- `REGLES_METIER_LEADDESK.md` (RM-02) : ajouter qu'une entreprise vierge contient toujours les unités RH et Moyens généraux, chacune avec un poste de responsable sans agent (D-013).
 
 - `Synthese_decisions_fonctionnelles_V1.md` : y reporter les approches retenues (D-006), comme le demande le critère de fin de la phase 0.
 - `REGLES_METIER_LEADDESK.md` (RM-52), `Synthese_decisions_fonctionnelles_V1.md` (section 9), `CONTEXTE_LEADDESK_CLAUDE_CODE.md`, `PLAN_DE_REALISATION_LEADDESK.md` (« un seul thème, clair et pastel, jusqu'à la phase 11 », « thème sombre » en phase 11, « calques (thème clair) ») et `inspiration_design/README.md` : remplacer les deux thèmes par un thème unique, sombre et chaleureux, avec les images 04 à 09 comme référence (D-004, D-007).
