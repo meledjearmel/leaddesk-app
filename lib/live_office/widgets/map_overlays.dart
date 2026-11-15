@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../api/realtime.dart';
 import '../../app/theme.dart';
 import '../live_office_controller.dart';
 import '../models.dart';
@@ -505,9 +506,15 @@ class MapControlBar extends StatelessWidget {
           ),
           _BarButton(
             label: 'En direct',
-            tooltip: controller.live
-                ? 'Suivi en direct activé'
-                : 'Suivre l\'activité en direct',
+            tooltip: switch ((controller.live, controller.realtimeStatus)) {
+              (false, _) => 'Suivre l\'activité en direct',
+              (true, RealtimeStatus.live) =>
+                'En direct : les changements arrivent sans recharger',
+              (true, RealtimeStatus.offline) =>
+                'Temps réel hors ligne : nouvelle tentative en cours',
+              (true, RealtimeStatus.connecting) => 'Connexion au temps réel…',
+              (true, RealtimeStatus.idle) => 'Suivi en direct activé',
+            },
             onTap: controller.toggleLive,
             leading: controller.live && !controller.paused
                 ? const Padding(

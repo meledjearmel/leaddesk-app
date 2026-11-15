@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../api/api_client.dart';
+import '../api/realtime.dart';
 import '../app/theme.dart';
 import 'live_office_controller.dart';
 import 'office_camera.dart';
@@ -24,7 +25,15 @@ import 'widgets/proposal_panel.dart';
 /// Écran principal : rail d'icônes, panneau des agents, bureau vivant et
 /// panneau de conversation.
 class LiveOfficeScreen extends StatefulWidget {
-  const LiveOfficeScreen({super.key, this.source, this.onSignOut});
+  const LiveOfficeScreen({
+    super.key,
+    this.source,
+    this.onSignOut,
+    this.realtime,
+  });
+
+  /// Temps réel de l'entreprise (D-020) ; absent en démonstration.
+  final RealtimeClient? realtime;
 
   /// Déconnexion, proposée dans le rail d'icônes.
   final VoidCallback? onSignOut;
@@ -52,6 +61,8 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
   OfficeViewMode? _shownMode;
   int _shownRevision = 0;
   ApiClient? _client;
+  final List<StreamSubscription<Object?>> _realtimeSubscriptions =
+      <StreamSubscription<Object?>>[];
 
   PlanGeometry _buildGeometry() =>
       PlanGeometry(_controller.plan, _controller.departments);
@@ -128,6 +139,13 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
     super.initState();
     _syncScene();
     _controller.addListener(_syncScene);
+    if (widget.realtime case final realtime?) {
+      _realtimeSubscriptions.addAll(<StreamSubscription<Object?>>[
+        realtime.changes.listen(_controller.onRemoteChange),
+        realtime.statuses.listen(_controller.setRealtimeStatus),
+      ]);
+      unawaited(realtime.start());
+    }
     final source = widget.source ?? _defaultSource();
     if (source != null) {
       unawaited(
@@ -186,6 +204,9 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
 
   @override
   void dispose() {
+    for (final subscription in _realtimeSubscriptions) {
+      unawaited(subscription.cancel());
+    }
     _controller
       ..removeListener(_syncScene)
       ..dispose();

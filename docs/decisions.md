@@ -156,6 +156,16 @@ Questions ouvertes pour Armel : qui peut proposer un aménagement (une IA dédi�
 - **Décision** : « Créer un compte » depuis l'écran de connexion. Champs : adresse du serveur (reprise d'un écran à l'autre), nom, e-mail, mot de passe et confirmation. L'application envoie `POST /auth/register` ; le compte reçoit le jeton de l'appareil et passe directement à la création de l'entreprise.
 - **Contrôles** : champs vides et confirmation différente vérifiés avant l'envoi ; les règles du serveur (e-mail déjà pris, mot de passe trop faible en production) s'affichent telles quelles.
 - **Reste à faire** : mot de passe oublié.
+### D-020 · Temps réel dans l'application
+
+- **Décision** : `RealtimeClient` (`lib/api/realtime.dart`) suit le protocole Pusher de Reverb directement sur le WebSocket de Dart, sans dépendance de plus. Étapes :
+  1. `GET /realtime` donne l'adresse, la clé et le canal (API D-040) ;
+  2. connexion, puis `POST /broadcasting/auth` avec le jeton ;
+  3. abonnement au canal privé de l'entreprise.
+- **Protocole** : il répond aux `pusher:ping` et envoie lui-même un ping après le délai d'inactivité annoncé. Il ignore tout autre canal. En cas de coupure, il se reconnecte, de plus en plus espacé (1, 2, 4… jusqu'à 30 s).
+- **Effet** : chaque `company.changed` recharge le bureau (départements, plan, agents, propositions), après 400 ms qui regroupent les rafales. Une proposition des Moyens généraux apparaît donc sans recharger. Si « En direct » est coupé, le rechargement attend sa reprise. L'infobulle de « En direct » donne l'état de la connexion (connecté, connexion, hors ligne).
+- **Portée** : session connectée seulement ; ni la démonstration ni `LD_API_URL` sans serveur Reverb n'en ont besoin. Si Reverb n'est pas configuré, le client reste hors ligne sans gêner le reste.
+- **Limites** : tout est rechargé à chaque changement, sans tri selon la ressource touchée ; c'est simple et suffisant à cette taille.
 ## Propositions de mise à jour des documents de conception
 
 - `REGLES_METIER_LEADDESK.md` (RM-02) : ajouter qu'une entreprise vierge contient toujours les unités RH et Moyens généraux, chacune avec un poste de responsable sans agent (D-013).

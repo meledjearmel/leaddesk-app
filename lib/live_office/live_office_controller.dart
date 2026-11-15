@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../api/api_client.dart';
+import '../api/realtime.dart';
 import '../office/office_plan.dart';
 import '../office/office_planner.dart';
 import '../office/plan_editor.dart';
@@ -231,6 +234,43 @@ class LiveOfficeController extends ChangeNotifier {
   bool get signedOut => _signedOut;
   bool _signedOut = false;
 
+  RealtimeStatus _realtimeStatus = RealtimeStatus.idle;
+  Timer? _reloadTimer;
+  bool _pendingRemote = false;
+
+  /// Délai qui regroupe les changements rapprochés avant de recharger.
+  static const Duration remoteDebounce = Duration(milliseconds: 400);
+
+  /// État de la connexion au temps réel (D-020).
+  RealtimeStatus get realtimeStatus => _realtimeStatus;
+
+  void setRealtimeStatus(RealtimeStatus status) {
+    if (_realtimeStatus == status) {
+      return;
+    }
+    _realtimeStatus = status;
+    notifyListeners();
+  }
+
+  /// Le serveur annonce un changement : le bureau se recharge, sauf si le
+  /// suivi en direct est coupé ; il se rechargera alors à sa reprise.
+  void onRemoteChange(CompanyChange change) {
+    if (_source == null) {
+      return;
+    }
+    if (!_live) {
+      _pendingRemote = true;
+      return;
+    }
+    _reloadTimer?.cancel();
+    _reloadTimer = Timer(remoteDebounce, () {
+      final source = _source;
+      if (source != null) {
+        unawaited(load(source, fromServer: _fromServer));
+      }
+    });
+  }
+
   /// Remplace les départements, le plan et les agents.
   void apply(OfficeSnapshot snapshot, {bool fromServer = false}) {
     _departments = snapshot.departments;
@@ -363,6 +403,10 @@ class LiveOfficeController extends ChangeNotifier {
   void toggleLive() {
     _live = !_live;
     notifyListeners();
+    if (_live && _pendingRemote) {
+      _pendingRemote = false;
+      onRemoteChange(const CompanyChange(id: 0, event: 'reprise'));
+    }
   }
 
   /// Passe à la vitesse suivante, puis revient à la première.
@@ -407,6 +451,7 @@ class LiveOfficeController extends ChangeNotifier {
   @override
   void dispose() {
     _editor?.dispose();
+    _reloadTimer?.cancel();
     sceneTime.dispose();
     super.dispose();
   }

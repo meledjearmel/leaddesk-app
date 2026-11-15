@@ -105,3 +105,11 @@ Décisions : D-012, D-013. Ordre : 0 → 1 → 2 → 5 → 3 → 4 → 6. Chaque
 **Testé** : 126 tests verts ; captures `connexion`, `inscription` et `creation_entreprise` ; icône vérifiée en 256 et 32 px.
 
 **Reste à faire** : mot de passe oublié ; temps réel (Reverb) ; moteur d'exécution local.
+
+## Temps réel (15 novembre 2026)
+
+**Fait** : client Reverb (protocole Pusher) avec reconnexion, rechargement du bureau à chaque changement annoncé, état dans l'infobulle « En direct » (D-020) ; route `GET /realtime` côté API (D-040).
+
+**Testé** : 132 tests verts dans l'application (6 nouveaux, avec une fausse prise WebSocket), 270 dans l'API.
+
+**Reste à faire** : vérifier en conditions réelles (Reverb et le worker de file lancés) ; mot de passe oublié ; moteur d'exécution local.

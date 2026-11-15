@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../api/api_client.dart';
+import '../api/realtime.dart';
 import '../app/theme.dart';
 import '../live_office/live_office_screen.dart';
 import '../live_office/office_source.dart';
@@ -21,6 +22,7 @@ class AppGate extends StatefulWidget {
     required this.store,
     required this.auth,
     this.httpClient,
+    this.realtimeConnector,
     super.key,
   });
 
@@ -29,6 +31,9 @@ class AppGate extends StatefulWidget {
 
   /// Client HTTP du bureau ; par défaut un client réel.
   final http.Client? httpClient;
+
+  /// Connexion WebSocket du temps réel ; par défaut une vraie connexion.
+  final RealtimeConnector? realtimeConnector;
 
   @override
   State<AppGate> createState() => _AppGateState();
@@ -40,6 +45,7 @@ class _AppGateState extends State<AppGate> {
   _Stage _stage = _Stage.loading;
   Session? _session;
   ApiClient? _client;
+  RealtimeClient? _realtime;
   String _lastServer = '';
 
   @override
@@ -78,7 +84,7 @@ class _AppGateState extends State<AppGate> {
     if (persist) {
       unawaited(widget.store.write(session));
     }
-    _client?.close();
+    _closeClients();
     _lastServer = session.baseUrl.toString().replaceFirst(
       RegExp(r'/api/v1/?$'),
       '',
@@ -90,6 +96,10 @@ class _AppGateState extends State<AppGate> {
         _stage = _Stage.setup;
       } else {
         _client = ApiClient(session.config, httpClient: widget.httpClient);
+        _realtime = RealtimeClient(
+          _client!,
+          connector: widget.realtimeConnector,
+        );
         _stage = _Stage.office;
       }
     });
@@ -101,17 +111,26 @@ class _AppGateState extends State<AppGate> {
       _stage = _Stage.signIn;
       _session = null;
     });
-    _client?.close();
-    _client = null;
+    _closeClients();
     await widget.store.clear();
     if (session != null) {
       await widget.auth.signOut(session);
     }
   }
 
+  void _closeClients() {
+    final realtime = _realtime;
+    _realtime = null;
+    if (realtime != null) {
+      unawaited(realtime.dispose());
+    }
+    _client?.close();
+    _client = null;
+  }
+
   @override
   void dispose() {
-    _client?.close();
+    _closeClients();
     super.dispose();
   }
 
@@ -147,6 +166,7 @@ class _AppGateState extends State<AppGate> {
       _Stage.office => LiveOfficeScreen(
         key: ValueKey<Uri>(_session!.baseUrl),
         source: ApiOfficeSource(_client!),
+        realtime: _realtime,
         onSignOut: _signOut,
       ),
       _Stage.demo => LiveOfficeScreen(
