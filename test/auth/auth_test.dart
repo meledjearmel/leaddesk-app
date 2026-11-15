@@ -55,6 +55,25 @@ MockClient _server({
           ],
         },
       }, 422);
+    case ('POST', 'auth/register'):
+      final body = jsonDecode(request.body) as Map<String, Object?>;
+      if (body['email'] == 'pris@exemple.test') {
+        return json(<String, Object?>{
+          'message': 'Invalide.',
+          'errors': <String, Object?>{
+            'email': <String>['Cette adresse e-mail est déjà utilisée.'],
+          },
+        }, 422);
+      }
+      return json(<String, Object?>{
+        'token': '2|new',
+        'user': <String, Object?>{
+          'id': 2,
+          'name': body['name'],
+          'email': body['email'],
+          'company': null,
+        },
+      }, 201);
     case ('POST', 'company'):
       final body = jsonDecode(request.body) as Map<String, Object?>;
       return json(<String, Object?>{
@@ -168,6 +187,45 @@ void main() {
       ]);
     });
 
+    test('D-019 : créer un compte ouvre une session sans entreprise', () async {
+      final calls = <String>[];
+      final auth = AuthService(httpClient: _server(calls: calls));
+
+      final session = await auth.signUp(
+        baseUrl: _base,
+        name: ' Awa Kouassi ',
+        email: 'awa@exemple.test',
+        password: 'motdepasse',
+        confirmation: 'motdepasse',
+      );
+
+      expect(session.token, '2|new');
+      expect(session.userName, 'Awa Kouassi');
+      expect(session.companyName, isNull);
+      expect(calls, <String>['POST auth/register -']);
+    });
+
+    test('un e-mail déjà pris donne un message clair', () async {
+      final auth = AuthService(httpClient: _server());
+
+      await expectLater(
+        auth.signUp(
+          baseUrl: _base,
+          name: 'A',
+          email: 'pris@exemple.test',
+          password: 'x',
+          confirmation: 'x',
+        ),
+        throwsA(
+          isA<ApiException>().having(
+            describeError,
+            'message',
+            'Cette adresse e-mail est déjà utilisée.',
+          ),
+        ),
+      );
+    });
+
     test('la session se relit telle qu\'elle a été écrite', () async {
       final store = MemorySessionStore();
       final session = Session(
@@ -278,6 +336,44 @@ void main() {
 
       expect(find.text('Connexion'), findsOneWidget);
       expect(await store.read(), isNull);
+    });
+
+    testWidgets('créer un compte mène à la création de l\'entreprise', (
+      tester,
+    ) async {
+      final store = MemorySessionStore();
+      await _pumpGate(
+        tester,
+        store: store,
+        auth: AuthService(httpClient: _server()),
+      );
+      await tester.enterText(find.byType(TextField).at(0), 'api.test');
+      await tester.tap(find.text('Créer un compte'));
+      await tester.pump();
+
+      expect(find.text('Créer le compte'), findsOneWidget);
+      // L'adresse saisie est reprise.
+      expect(find.text('api.test'), findsOneWidget);
+      await tester.enterText(find.byType(TextField).at(1), 'Awa Kouassi');
+      await tester.enterText(find.byType(TextField).at(2), 'awa@exemple.test');
+      await tester.enterText(find.byType(TextField).at(3), 'motdepasse');
+      await tester.enterText(find.byType(TextField).at(4), 'autre');
+      await tester.tap(find.text('Créer le compte'));
+      await tester.pump();
+      expect(
+        find.text('Les deux mots de passe ne sont pas identiques.'),
+        findsOneWidget,
+      );
+
+      await tester.enterText(find.byType(TextField).at(4), 'motdepasse');
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Créer le compte'));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await tester.pump();
+
+      expect(find.text('Bienvenue, Awa'), findsOneWidget);
+      expect((await store.read())!.token, '2|new');
     });
 
     testWidgets('la démonstration s\'ouvre sans serveur', (tester) async {

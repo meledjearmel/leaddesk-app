@@ -81,6 +81,31 @@ class AuthService {
       'password': password,
       'device_name': deviceName,
     });
+    return _session(baseUrl, json, email);
+  }
+
+  /// Crée le compte du CEO et ouvre sa session (D-019). Le compte n'a pas
+  /// encore d'entreprise. Lève [ApiException] (422 : e-mail déjà pris, mot
+  /// de passe trop faible, confirmation différente).
+  Future<Session> signUp({
+    required Uri baseUrl,
+    required String name,
+    required String email,
+    required String password,
+    required String confirmation,
+  }) async {
+    final json = await _client(baseUrl)
+        .postRaw('auth/register', <String, Object?>{
+          'name': name.trim(),
+          'email': email.trim(),
+          'password': password,
+          'password_confirmation': confirmation,
+          'device_name': deviceName,
+        });
+    return _session(baseUrl, json, email);
+  }
+
+  Session _session(Uri baseUrl, Map<String, Object?> json, String email) {
     final token = json['token'];
     final user = json['user'];
     if (token is! String || user is! Map<String, Object?>) {

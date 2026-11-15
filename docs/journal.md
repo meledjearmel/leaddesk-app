@@ -97,3 +97,11 @@ Décisions : D-012, D-013. Ordre : 0 → 1 → 2 → 5 → 3 → 4 → 6. Chaque
 **Testé** : 122 tests verts (10 nouveaux, avec un faux serveur) ; captures `connexion` et `creation_entreprise` comparées au style des images 06, 07 et 09.
 
 **Reste à faire** : création de compte et mot de passe oublié dans l'application ; temps réel (Reverb) ; moteur d'exécution local.
+
+## Logo et création de compte (15 novembre 2026)
+
+**Fait** : logo « grille d'agents » (D-018) dans le rail, les écrans d'accueil et l'icône Windows ; création de compte (D-019).
+
+**Testé** : 126 tests verts ; captures `connexion`, `inscription` et `creation_entreprise` ; icône vérifiée en 256 et 32 px.
+
+**Reste à faire** : mot de passe oublié ; temps réel (Reverb) ; moteur d'exécution local.

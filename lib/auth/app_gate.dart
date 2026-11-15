@@ -34,7 +34,7 @@ class AppGate extends StatefulWidget {
   State<AppGate> createState() => _AppGateState();
 }
 
-enum _Stage { loading, signIn, setup, office, demo }
+enum _Stage { loading, signIn, signUp, setup, office, demo }
 
 class _AppGateState extends State<AppGate> {
   _Stage _stage = _Stage.loading;
@@ -124,6 +124,19 @@ class _AppGateState extends State<AppGate> {
         initialServer: _lastServer,
         onSignedIn: _open,
         onDemo: () => setState(() => _stage = _Stage.demo),
+        onCreateAccount: (server) => setState(() {
+          _lastServer = server;
+          _stage = _Stage.signUp;
+        }),
+      ),
+      _Stage.signUp => SignUpScreen(
+        auth: widget.auth,
+        initialServer: _lastServer,
+        onSignedUp: _open,
+        onBack: (server) => setState(() {
+          _lastServer = server;
+          _stage = _Stage.signIn;
+        }),
       ),
       _Stage.setup => CompanySetupScreen(
         auth: widget.auth,

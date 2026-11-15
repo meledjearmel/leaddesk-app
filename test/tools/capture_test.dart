@@ -142,9 +142,18 @@ void main() {
     });
   }
 
-  for (final setup in const <bool>[false, true]) {
+  for (final (setup, signUp) in const <(bool, bool)>[
+    (false, false),
+    (true, false),
+    (false, true),
+  ]) {
     testWidgets(
-      'capture l\'écran ${setup ? 'de création' : 'de connexion'}',
+      'capture l\'écran '
+      '${setup
+          ? 'de création'
+          : signUp
+          ? 'd\'inscription'
+          : 'de connexion'}',
       skip: skip,
       (tester) async {
         await _loadFont('Segoe UI', const <String>[
@@ -189,11 +198,19 @@ void main() {
                       onCreated: (_) {},
                       onSignOut: () {},
                     )
+                  : signUp
+                  ? SignUpScreen(
+                      auth: auth,
+                      initialServer: 'leaddesk.exemple.com',
+                      onSignedUp: (_) {},
+                      onBack: (_) {},
+                    )
                   : SignInScreen(
                       auth: auth,
                       initialServer: 'leaddesk.exemple.com',
                       onSignedIn: (_) {},
                       onDemo: () {},
+                      onCreateAccount: (_) {},
                     ),
             ),
           ),
@@ -206,7 +223,11 @@ void main() {
           final image = await boundary.toImage();
           await _writePng(
             image,
-            '$dir/${setup ? 'creation_entreprise' : 'connexion'}.png',
+            '$dir/${setup
+                ? 'creation_entreprise'
+                : signUp
+                ? 'inscription'
+                : 'connexion'}.png',
           );
           image.dispose();
         });

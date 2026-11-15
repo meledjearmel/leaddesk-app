@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../api/api_client.dart';
+import '../app/logo.dart';
 import '../app/theme.dart';
 import '../live_office/widgets/common.dart';
-import '../live_office/widgets/icon_rail.dart';
 import 'auth_service.dart';
 import 'session.dart';
 
@@ -222,7 +222,8 @@ class _LinkButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return Align(
+      widthFactor: 1,
       child: LdPressable(
         onTap: onTap,
         builder: (context, hovered) => Padding(
@@ -285,12 +286,16 @@ class SignInScreen extends StatefulWidget {
     required this.auth,
     required this.onSignedIn,
     this.onDemo,
+    this.onCreateAccount,
     this.initialServer = '',
     super.key,
   });
 
   final AuthService auth;
   final ValueChanged<Session> onSignedIn;
+
+  /// Ouvre la création de compte, avec l'adresse du serveur saisie.
+  final ValueChanged<String>? onCreateAccount;
 
   /// Ouvre le bureau de démonstration, sans serveur.
   final VoidCallback? onDemo;
@@ -390,10 +395,170 @@ class _SignInScreenState extends State<SignInScreen> {
           busy: _busy,
           onTap: _submit,
         ),
-        if (widget.onDemo case final demo?) ...<Widget>[
-          const SizedBox(height: 8),
-          _LinkButton(label: 'Voir la démonstration', onTap: demo),
-        ],
+        const SizedBox(height: 8),
+        Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            if (widget.onCreateAccount case final create?)
+              _LinkButton(
+                label: 'Créer un compte',
+                onTap: () => create(_server.text),
+              ),
+            if (widget.onCreateAccount != null && widget.onDemo != null)
+              const Text('·', style: TextStyle(color: LdColors.textFaint)),
+            if (widget.onDemo case final demo?)
+              _LinkButton(label: 'Voir la démonstration', onTap: demo),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Création du compte du CEO (D-019).
+class SignUpScreen extends StatefulWidget {
+  const SignUpScreen({
+    required this.auth,
+    required this.onSignedUp,
+    required this.onBack,
+    this.initialServer = '',
+    super.key,
+  });
+
+  final AuthService auth;
+  final ValueChanged<Session> onSignedUp;
+
+  /// Retour à la connexion, avec l'adresse du serveur saisie.
+  final ValueChanged<String> onBack;
+  final String initialServer;
+
+  @override
+  State<SignUpScreen> createState() => _SignUpScreenState();
+}
+
+class _SignUpScreenState extends State<SignUpScreen> {
+  late final TextEditingController _server = TextEditingController(
+    text: widget.initialServer,
+  );
+  final TextEditingController _name = TextEditingController();
+  final TextEditingController _email = TextEditingController();
+  final TextEditingController _password = TextEditingController();
+  final TextEditingController _confirmation = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    for (final controller in <TextEditingController>[
+      _server,
+      _name,
+      _email,
+      _password,
+      _confirmation,
+    ]) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final baseUrl = AuthService.normalizeBaseUrl(_server.text);
+    final error = switch (()) {
+      _ when baseUrl == null => 'Indiquez l\'adresse du serveur LeadDesk.',
+      _ when _name.text.trim().isEmpty => 'Indiquez votre nom.',
+      _ when _email.text.trim().isEmpty => 'Indiquez votre e-mail.',
+      _ when _password.text.isEmpty => 'Choisissez un mot de passe.',
+      _ when _password.text != _confirmation.text =>
+        'Les deux mots de passe ne sont pas identiques.',
+      _ => null,
+    };
+    if (error != null) {
+      setState(() => _error = error);
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final session = await widget.auth.signUp(
+        baseUrl: baseUrl!,
+        name: _name.text,
+        email: _email.text,
+        password: _password.text,
+        confirmation: _confirmation.text,
+      );
+      if (mounted) {
+        widget.onSignedUp(session);
+      }
+    } on Object catch (failure) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = describeError(failure);
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _AuthFrame(
+      title: 'Créer un compte',
+      subtitle:
+          'Un compte par CEO. Vous créerez ensuite votre entreprise et ses '
+          'agents.',
+      children: <Widget>[
+        AutofillGroup(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              _Field(
+                label: 'Adresse du serveur',
+                controller: _server,
+                hint: 'leaddesk.exemple.com',
+                keyboardType: TextInputType.url,
+              ),
+              _Field(
+                label: 'Nom',
+                controller: _name,
+                autofillHints: const <String>[AutofillHints.name],
+                autofocus: true,
+              ),
+              _Field(
+                label: 'E-mail',
+                controller: _email,
+                keyboardType: TextInputType.emailAddress,
+                autofillHints: const <String>[AutofillHints.email],
+              ),
+              _Field(
+                label: 'Mot de passe',
+                controller: _password,
+                obscure: true,
+                autofillHints: const <String>[AutofillHints.newPassword],
+              ),
+              _Field(
+                label: 'Confirmer le mot de passe',
+                controller: _confirmation,
+                obscure: true,
+                autofillHints: const <String>[AutofillHints.newPassword],
+                onSubmitted: (_) => _submit(),
+              ),
+            ],
+          ),
+        ),
+        if (_error case final error?) _ErrorLine(error),
+        _PrimaryButton(
+          label: _busy ? 'Création…' : 'Créer le compte',
+          busy: _busy,
+          onTap: _submit,
+        ),
+        const SizedBox(height: 8),
+        _LinkButton(
+          label: 'J\'ai déjà un compte',
+          onTap: () => widget.onBack(_server.text),
+        ),
       ],
     );
   }

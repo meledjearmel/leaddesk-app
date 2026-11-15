@@ -145,6 +145,17 @@ Questions ouvertes pour Armel : qui peut proposer un aménagement (une IA dédi�
 - **Développement** : `LD_API_URL` et `LD_API_TOKEN` (D-014) ouvrent toujours le bureau directement, sans rien enregistrer.
 - **Style** : carte centrée, dans le style des panneaux du bureau (images 06, 07 et 09), sur un fond sombre à lueur chaude ; bouton principal blanc comme « Nouvel objectif ».
 - **Limites** : pas de création de compte ni de mot de passe oublié dans l'application (l'API et Fortify les permettent, à ajouter si besoin) ; un seul compte par poste.
+### D-018 · Logo de LeadDesk
+
+- **Décision** (piste choisie par Armel, 15 novembre 2026 : « grille d'agents ») : neuf postes vus de dessus sur un carreau sombre à coins arrondis. Le poste en bas à droite, plus grand, ambré et légèrement lumineux, est celui qui mène. Dessin original, dans la palette du thème unique.
+- **Source unique** : `LeadDeskMarkPainter` (`lib/app/logo.dart`). Il sert au rail d'icônes, aux écrans d'accueil et à l'icône de l'application. `test/tools/icon_test.dart` (avec `LD_ICON_DIR`) génère `windows/runner/resources/app_icon.ico` (16 à 256 px) et `assets/branding/leaddesk_1024.png`.
+- **Alternatives écartées** : bureau isométrique en pixel art (moins lisible en 16 px) ; monogramme « LD ».
+
+### D-019 · Création de compte dans l'application
+
+- **Décision** : « Créer un compte » depuis l'écran de connexion. Champs : adresse du serveur (reprise d'un écran à l'autre), nom, e-mail, mot de passe et confirmation. L'application envoie `POST /auth/register` ; le compte reçoit le jeton de l'appareil et passe directement à la création de l'entreprise.
+- **Contrôles** : champs vides et confirmation différente vérifiés avant l'envoi ; les règles du serveur (e-mail déjà pris, mot de passe trop faible en production) s'affichent telles quelles.
+- **Reste à faire** : mot de passe oublié.
 ## Propositions de mise à jour des documents de conception
 
 - `REGLES_METIER_LEADDESK.md` (RM-02) : ajouter qu'une entreprise vierge contient toujours les unités RH et Moyens généraux, chacune avec un poste de responsable sans agent (D-013).

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../app/theme.dart';
+import '../../app/logo.dart';
 import 'common.dart';
 
 /// Rail d'icônes : logo, navigation principale, réglages.
@@ -73,54 +73,4 @@ class IconRail extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Logo de LeadDesk : une grille de neuf points dont un point ambre.
-class LeadDeskLogo extends StatelessWidget {
-  const LeadDeskLogo({this.size = 40, super.key});
-
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: 'LeadDesk',
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A1A19),
-          borderRadius: BorderRadius.circular(size * 0.3),
-          border: Border.all(color: LdColors.borderStrong),
-        ),
-        child: Center(
-          child: SizedBox.square(
-            dimension: size * 0.45,
-            child: CustomPaint(painter: _LogoPainter()),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint();
-    final step = size.width / 3;
-    for (var row = 0; row < 3; row++) {
-      for (var col = 0; col < 3; col++) {
-        final accent = row == 2 && col == 2;
-        canvas.drawCircle(
-          Offset(step * (col + 0.5), step * (row + 0.5)),
-          accent ? step * 0.36 : step * 0.28,
-          paint..color = accent ? LdColors.amber : LdColors.text,
-        );
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_LogoPainter oldDelegate) => false;
 }
