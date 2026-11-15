@@ -1,7 +1,7 @@
 name: prototypes
 
 # Construit les prototypes de la phase 0 pour Windows, les exécute en mode
-# mesure et publie les rapports JSON et les captures PNG.
+# mesure et écrit dans le journal les rapports JSON et les captures PNG.
 # Le runner n'a pas de carte graphique : le rendu est logiciel, les mesures
 # de fluidité sont donc un plancher pessimiste.
 
@@ -78,9 +78,17 @@ jobs:
           }
           Get-Content $env:BENCH_OUT
 
-      - name: Publish reports and screenshots
+      # Le quota d'artefacts du compte est atteint : les captures sont écrites
+      # dans le journal, en base64, entre deux repères.
+      - name: Print screenshots
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: prototypes-bench
-          path: bench/
+        shell: pwsh
+        run: |
+          foreach ($name in 'iso_room_30', 'layered_character') {
+            $file = "bench\$name.png"
+            if (Test-Path $file) {
+              Write-Output "-----BEGIN PNG $name-----"
+              [Convert]::ToBase64String([IO.File]::ReadAllBytes($file), 'InsertLineBreaks')
+              Write-Output "-----END PNG $name-----"
+            }
+          }
