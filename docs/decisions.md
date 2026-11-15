@@ -110,6 +110,19 @@ Questions ouvertes pour Armel : qui peut proposer un aménagement (une IA dédi�
 - **Décision** : `ApiOfficeSource` lit sur le serveur les départements d'aménagement (`/office/departments`, avec couleur, effectif et activités), le plan en vigueur (`/office/plan`), les unités, les postes et les agents. Un agent travaille dans les salles du département (unité de premier niveau) de son poste ; un agent sans poste n'est pas au bureau. Le plan du serveur est affiché s'il respecte les règles ; sinon (aucun plan, ou organisation changée depuis), l'aménageur automatique prend le relais. La scène se recompose à chaque nouveau jeu de données.
 - **Connexion provisoire** : tant que l'écran de connexion n'existe pas, l'adresse et le jeton viennent de `LD_API_URL` et `LD_API_TOKEN` (`--dart-define` ou variable du système). Sans eux, ou si le serveur ne répond pas, l'application garde ses données de démonstration.
 - **Limites** : la conversation reste en démonstration ; les portraits des agents du serveur sont attribués à tour de rôle (pas encore de personnage choisi) ; pas encore de mise à jour en temps réel (Reverb).
+### D-015 · Écran de validation d'un réaménagement
+
+- **Décision** : une proposition en attente s'annonce par un bandeau ambré sur la carte (« Réaménagement proposé par … · Examiner »). Le panneau de validation prend la place de la conversation, dans le même style que les panneaux des images 06, 07 et 09 :
+  - en-tête avec pastille « En attente » ;
+  - onglets « Plan actuel / Plan proposé » qui basculent aussi le plateau sur la carte ;
+  - motif ;
+  - aperçu vu de dessus avec les changements soulignés (vert ajoutée, rouge retirée en pointillé, ambre déplacée, bleu redimensionnée, violet change de département) ;
+  - résumé chiffré et liste des changements, retraits et ajouts d'abord ;
+  - contrôle des règles, avec les mêmes messages que le serveur ;
+  - boutons Refuser / Accepter.
+- **Règles** : « Accepter » est désactivé si le plan ne respecte pas les règles. Une confirmation est demandée quand le plan retire des salles. Après la décision, le bureau est rechargé depuis le serveur. Une erreur du serveur (par exemple une organisation changée depuis la proposition) s'affiche dans le panneau, et rien ne change.
+- **Comparaison** (`PlanDiff`) : une salle garde son identifiant d'un plan à l'autre ; un changement de département l'emporte sur un changement de taille, qui l'emporte sur un déplacement.
+- **Limites** : sur une fenêtre de moins de 820 px, le panneau ne tient pas ; seul l'aperçu sur la carte reste disponible. Pas de commentaire du CEO pour l'instant, même si l'API le permet.
 ## Propositions de mise à jour des documents de conception
 
 - `REGLES_METIER_LEADDESK.md` (RM-02) : ajouter qu'une entreprise vierge contient toujours les unités RH et Moyens généraux, chacune avec un poste de responsable sans agent (D-013).

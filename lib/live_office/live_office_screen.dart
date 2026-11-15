@@ -17,6 +17,7 @@ import 'widgets/conversation_panel.dart';
 import 'widgets/icon_rail.dart';
 import 'widgets/map_overlays.dart';
 import 'widgets/office_view.dart';
+import 'widgets/proposal_panel.dart';
 
 /// Écran principal : rail d'icônes, panneau des agents, bureau vivant et
 /// panneau de conversation.
@@ -197,7 +198,12 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                 final showAgents =
                     _controller.agentPanelOpen &&
                     width >= LiveOfficeScreen.agentPanelBreakpoint;
+                // La proposition ouverte prend la place de la conversation.
+                final showProposal =
+                    _controller.openProposal != null &&
+                    width >= LiveOfficeScreen.agentPanelBreakpoint;
                 final showConversation =
+                    !showProposal &&
                     _controller.conversationOpen &&
                     width >= LiveOfficeScreen.conversationBreakpoint;
                 return Row(
@@ -213,7 +219,10 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                       const SizedBox(width: 8),
                     ],
                     Expanded(child: _buildMap()),
-                    if (showConversation) ...<Widget>[
+                    if (showProposal) ...<Widget>[
+                      const SizedBox(width: 8),
+                      ProposalPanel(controller: _controller),
+                    ] else if (showConversation) ...<Widget>[
                       const SizedBox(width: 8),
                       ConversationPanel(controller: _controller),
                     ],
@@ -271,6 +280,20 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                     ),
                   ),
                 ),
+                if (_controller.proposals.isNotEmpty &&
+                    (_controller.openProposal == null ||
+                        _controller.previewing))
+                  Positioned(
+                    top: 68,
+                    left: 12,
+                    right: 12,
+                    child: Center(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: ProposalNotice(controller: _controller),
+                      ),
+                    ),
+                  ),
                 Positioned(
                   top: 12,
                   right: 12,

@@ -14,12 +14,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:leaddesk_app/app/theme.dart';
+import 'package:leaddesk_app/live_office/live_office_screen.dart';
 import 'package:leaddesk_app/live_office/scene/office_scene.dart';
 import 'package:leaddesk_app/live_office/scene/pixel_people.dart';
 import 'package:leaddesk_app/live_office/scene/plan_scene.dart';
 import 'package:leaddesk_app/main.dart';
 import 'package:leaddesk_app/office/office_planner.dart';
 import 'package:leaddesk_app/office/studio_template.dart';
+
+import '../support/proposal_source.dart';
 
 Future<void> _loadFont(String family, List<String> paths) async {
   final loader = FontLoader(family);
@@ -130,5 +134,66 @@ void main() {
         image.dispose();
       });
     });
+  }
+
+  for (final preview in const <bool>[false, true]) {
+    testWidgets(
+      'capture la validation d\'une proposition${preview ? ' (aperçu)' : ''}',
+      skip: skip,
+      (tester) async {
+        await _loadFont('Segoe UI', const <String>[
+          r'C:\Windows\Fonts\segoeui.ttf',
+          r'C:\Windows\Fonts\seguisb.ttf',
+          r'C:\Windows\Fonts\segoeuib.ttf',
+        ]);
+        final flutterRoot =
+            Platform.environment['FLUTTER_ROOT'] ??
+            File(Platform.resolvedExecutable)
+                .parent
+                .parent
+                .parent
+                .parent
+                .parent
+                .parent
+                .path;
+        await _loadFont('MaterialIcons', <String>[
+          '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+        ]);
+        tester.view.physicalSize = const Size(1440, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+
+        final key = GlobalKey();
+        await tester.runAsync(() async {
+          await tester.pumpWidget(
+            RepaintBoundary(
+              key: key,
+              child: MaterialApp(
+                debugShowCheckedModeBanner: false,
+                theme: buildLeadDeskTheme(),
+                home: LiveOfficeScreen(source: ProposalSource()),
+              ),
+            ),
+          );
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+        });
+        await tester.pump(const Duration(milliseconds: 300));
+        if (preview) {
+          await tester.tap(find.text('Examiner'));
+          await tester.pump(const Duration(milliseconds: 600));
+        }
+
+        await tester.runAsync(() async {
+          final boundary =
+              key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+          final image = await boundary.toImage();
+          await _writePng(
+            image,
+            '$dir/proposition_${preview ? 'apercu' : 'bandeau'}.png',
+          );
+          image.dispose();
+        });
+      },
+    );
   }
 }

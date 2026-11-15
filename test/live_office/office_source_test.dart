@@ -30,6 +30,17 @@ Map<String, Object?> _routes({Object? plan}) => <String, Object?>{
     },
   ],
   'office/plan': plan,
+  'office/plans': <Object?>[
+    <String, Object?>{
+      'id': 12,
+      'version': 3,
+      'status': 'proposed',
+      'layout': (_validPlan()['layout']),
+      'reason': 'Embauche',
+      'proposed_by_agent_id': 7,
+      'proposed_by_position_id': 11,
+    },
+  ],
   'units': <Object?>[
     <String, Object?>{'id': 1, 'parent_id': null},
     <String, Object?>{'id': 2, 'parent_id': null},
@@ -161,6 +172,36 @@ void main() {
       // Le pôle 3 est sous l'unité 1 : l'agent travaille dans ses salles.
       expect(agent.departmentId, '1');
       expect(agent.status, 'En service');
+    });
+
+    test('les propositions en attente sont lues avec leur auteur', () async {
+      final calls = <String>[];
+      final snapshot = await ApiOfficeSource(_client(_routes(), calls: calls))
+          .load();
+
+      final proposal = snapshot.proposals.single;
+      expect(proposal.id, 12);
+      expect(proposal.version, 3);
+      expect(proposal.reason, 'Embauche');
+      expect(proposal.proposerName, 'Ysée');
+      expect(proposal.proposerPosition, 'Responsable');
+      expect(proposal.plan.rooms, hasLength(2));
+    });
+
+    test('accepter et refuser appellent le serveur', () async {
+      final calls = <String>[];
+      final routes = _routes()
+        ..['office/plans/12/accept'] = <String, Object?>{}
+        ..['office/plans/12/reject'] = <String, Object?>{};
+      final source = ApiOfficeSource(_client(routes, calls: calls));
+
+      await source.accept(12, comment: 'Oui');
+      await source.reject(12);
+
+      expect(calls, <String>[
+        'Bearer secret /api/v1/office/plans/12/accept',
+        'Bearer secret /api/v1/office/plans/12/reject',
+      ]);
     });
 
     test('le plan en vigueur sur le serveur est affiché', () async {

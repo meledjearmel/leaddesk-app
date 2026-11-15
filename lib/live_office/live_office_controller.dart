@@ -42,8 +42,109 @@ class LiveOfficeController extends ChangeNotifier {
   List<OfficeDepartment> get departments => _departments;
 
   /// Plan d'aménagement affiché : celui en vigueur sur le serveur, ou celui
-  /// de l'aménageur automatique.
-  OfficePlan get plan => _plan;
+  /// de l'aménageur automatique ; le plan proposé pendant son aperçu.
+  OfficePlan get plan => previewing ? openProposal!.plan : _plan;
+
+  /// Plan en vigueur, même pendant l'aperçu d'une proposition.
+  OfficePlan get currentPlan => _plan;
+
+  List<OfficeProposal> _proposals = const <OfficeProposal>[];
+  OfficePlan? _serverPlan;
+  int? _openProposalId;
+  bool _previewing = false;
+  bool _deciding = false;
+  String? _decisionError;
+  OfficeSource? _source;
+
+  /// Propositions d'aménagement en attente du CEO (D-012).
+  List<OfficeProposal> get proposals => _proposals;
+
+  /// Plan en vigueur sur le serveur, base de la comparaison.
+  OfficePlan? get serverPlan => _serverPlan;
+
+  /// Proposition ouverte dans le panneau de validation.
+  OfficeProposal? get openProposal {
+    for (final proposal in _proposals) {
+      if (proposal.id == _openProposalId) {
+        return proposal;
+      }
+    }
+    return null;
+  }
+
+  /// Vrai quand la carte montre le plan proposé au lieu du plan en vigueur.
+  bool get previewing => _previewing && openProposal != null;
+
+  bool get deciding => _deciding;
+  String? get decisionError => _decisionError;
+
+  /// Ouvre une proposition et montre son plan sur la carte.
+  void openProposalPanel(int id) {
+    _openProposalId = id;
+    _previewing = true;
+    _decisionError = null;
+    _mode = OfficeViewMode.plateau;
+    _revision++;
+    notifyListeners();
+  }
+
+  void closeProposalPanel() {
+    if (_openProposalId == null) {
+      return;
+    }
+    final wasPreviewing = previewing;
+    _openProposalId = null;
+    _previewing = false;
+    _decisionError = null;
+    if (wasPreviewing) {
+      _revision++;
+    }
+    notifyListeners();
+  }
+
+  /// Bascule la carte entre le plan en vigueur et le plan proposé.
+  void showProposedPlan({required bool proposed}) {
+    if (_previewing == proposed || openProposal == null) {
+      return;
+    }
+    _previewing = proposed;
+    _revision++;
+    notifyListeners();
+  }
+
+  /// Accepte ou refuse la proposition ouverte, puis recharge le bureau.
+  Future<void> decide({required bool accept, String? comment}) async {
+    final proposal = openProposal;
+    final source = _source;
+    if (proposal == null || source == null || _deciding) {
+      return;
+    }
+    if (source is! ProposalDecider) {
+      return;
+    }
+    final decider = source as ProposalDecider;
+    _deciding = true;
+    _decisionError = null;
+    notifyListeners();
+    try {
+      if (accept) {
+        await decider.accept(proposal.id, comment: comment);
+      } else {
+        await decider.reject(proposal.id, comment: comment);
+      }
+      _deciding = false;
+      closeProposalPanel();
+      await load(source);
+    } on ApiException catch (error) {
+      _deciding = false;
+      _decisionError = error.errors['layout']?.join('\n') ?? error.message;
+      notifyListeners();
+    } on Exception {
+      _deciding = false;
+      _decisionError = 'Serveur injoignable : rien n\'a changé.';
+      notifyListeners();
+    }
+  }
 
   /// Agents installés au bureau.
   List<OfficeAgent> get agents => _agents;
@@ -62,6 +163,12 @@ class LiveOfficeController extends ChangeNotifier {
     _departments = snapshot.departments;
     _plan = snapshot.plan;
     _agents = snapshot.agents;
+    _proposals = snapshot.proposals;
+    _serverPlan = snapshot.serverPlan;
+    if (openProposal == null) {
+      _openProposalId = null;
+      _previewing = false;
+    }
     _fromServer = fromServer;
     _loadError = null;
     _revision++;
@@ -75,6 +182,7 @@ class LiveOfficeController extends ChangeNotifier {
   /// Charge les données d'une source ; en cas d'échec, garde celles qui sont
   /// affichées et retient l'erreur.
   Future<void> load(OfficeSource source, {bool fromServer = true}) async {
+    _source = source;
     try {
       apply(await source.load(), fromServer: fromServer);
     } on ApiException catch (error) {

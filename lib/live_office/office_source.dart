@@ -6,6 +6,36 @@ import '../office/office_planner.dart';
 import '../office/studio_template.dart';
 import 'models.dart';
 
+/// Réaménagement proposé par un poste des Moyens généraux, en attente du
+/// CEO (D-012).
+class OfficeProposal {
+  const OfficeProposal({
+    required this.id,
+    required this.version,
+    required this.plan,
+    this.reason,
+    this.proposerName,
+    this.proposerPosition,
+  });
+
+  final int id;
+  final int version;
+  final OfficePlan plan;
+
+  /// Motif donné par le poste qui propose.
+  final String? reason;
+
+  /// Agent et poste qui proposent, s'ils sont connus.
+  final String? proposerName;
+  final String? proposerPosition;
+}
+
+/// Décisions du CEO sur une proposition.
+abstract interface class ProposalDecider {
+  Future<void> accept(int proposalId, {String? comment});
+  Future<void> reject(int proposalId, {String? comment});
+}
+
 /// Ce que montre le bureau vivant : départements, plan et agents.
 class OfficeSnapshot {
   const OfficeSnapshot({
@@ -13,11 +43,18 @@ class OfficeSnapshot {
     required this.plan,
     required this.agents,
     this.planFromServer = false,
+    this.proposals = const <OfficeProposal>[],
   });
 
   final List<OfficeDepartment> departments;
   final OfficePlan plan;
   final List<OfficeAgent> agents;
+
+  /// Propositions en attente, de la plus récente à la plus ancienne.
+  final List<OfficeProposal> proposals;
+
+  /// Plan en vigueur sur le serveur, s'il y en a un et qu'il est affiché.
+  OfficePlan? get serverPlan => planFromServer ? plan : null;
 
   /// Vrai quand le plan est celui en vigueur sur le serveur ; faux quand il
   /// vient de l'aménageur automatique.
@@ -51,7 +88,7 @@ class DemoOfficeSource implements OfficeSource {
 ///
 /// Sans plan en vigueur, ou si le plan du serveur ne respecte plus les règles
 /// (organisation changée depuis), l'aménageur automatique prend le relais.
-class ApiOfficeSource implements OfficeSource {
+class ApiOfficeSource implements OfficeSource, ProposalDecider {
   const ApiOfficeSource(this.client);
 
   final ApiClient client;
@@ -64,6 +101,7 @@ class ApiOfficeSource implements OfficeSource {
       client.getList('units'),
       client.getList('positions'),
       client.getList('agents'),
+      client.getList('office/plans?status=proposed'),
     ]);
     final departments = <OfficeDepartment>[
       for (final (i, raw)
@@ -88,17 +126,64 @@ class ApiOfficeSource implements OfficeSource {
       }
     }
 
+    final rawAgents = results[4]! as List<Map<String, Object?>>;
+    final positions = results[3]! as List<Map<String, Object?>>;
     return OfficeSnapshot(
       departments: departments,
       plan: plan ?? const OfficePlanner().plan(departments),
       planFromServer: plan != null,
       agents: buildAgents(
         units: results[2]! as List<Map<String, Object?>>,
-        positions: results[3]! as List<Map<String, Object?>>,
-        agents: results[4]! as List<Map<String, Object?>>,
+        positions: positions,
+        agents: rawAgents,
       ),
+      proposals: <OfficeProposal>[
+        for (final raw in results[5]! as List<Map<String, Object?>>)
+          if (raw['layout'] case final Map<String, Object?> layout)
+            OfficeProposal(
+              id: (raw['id']! as num).toInt(),
+              version: (raw['version']! as num).toInt(),
+              plan: OfficePlan.fromJson(layout),
+              reason: raw['reason'] as String?,
+              proposerName: _field(
+                rawAgents,
+                raw['proposed_by_agent_id'],
+                'name',
+              ),
+              proposerPosition: _field(
+                positions,
+                raw['proposed_by_position_id'],
+                'title',
+              ),
+            ),
+      ],
     );
   }
+
+  static String? _field(
+    List<Map<String, Object?>> rows,
+    Object? id,
+    String field,
+  ) {
+    for (final row in rows) {
+      if (id != null && row['id'] == id) {
+        return row[field] as String?;
+      }
+    }
+    return null;
+  }
+
+  @override
+  Future<void> accept(int proposalId, {String? comment}) => client.post(
+    'office/plans/$proposalId/accept',
+    <String, Object?>{'comment': ?comment},
+  );
+
+  @override
+  Future<void> reject(int proposalId, {String? comment}) => client.post(
+    'office/plans/$proposalId/reject',
+    <String, Object?>{'comment': ?comment},
+  );
 
   /// Agents occupant un poste, rattachés au département (unité de premier
   /// niveau) de leur poste. Les agents sans poste ne sont pas au bureau.
