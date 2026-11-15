@@ -89,3 +89,11 @@ Décisions : D-012, D-013. Ordre : 0 → 1 → 2 → 5 → 3 → 4 → 6. Chaque
 6. App : mode « Aménager » (glisser, ajouter, retirer, attribuer, validation en direct, annulation) ; une proposition en attente devient « périmée ». **Fait** (D-016 ; 112 tests verts ; capture `amenager` comparée aux panneaux des images 06, 07 et 09).
 
 **Bilan de la gestion des salles** : plan en vigueur et propositions sur le serveur, départements lus depuis l'API, MCP interne (`office.context`, `office.propose_plan`) pour le poste des Moyens généraux, demande automatique de réaménagement, écran de validation, aménagement à la main. Reste à faire : le moteur d'exécution local qui fera appeler le MCP par l'agent, l'écran de connexion, le temps réel (Reverb) pour voir arriver une proposition sans recharger.
+
+## Connexion du CEO (15 novembre 2026)
+
+**Fait** : écran de connexion, création de l'entreprise, session dans le stockage sécurisé de Windows, déconnexion dans le rail, retour à la connexion si le jeton est refusé, démonstration toujours accessible (D-017).
+
+**Testé** : 122 tests verts (10 nouveaux, avec un faux serveur) ; captures `connexion` et `creation_entreprise` comparées au style des images 06, 07 et 09.
+
+**Reste à faire** : création de compte et mot de passe oublié dans l'application ; temps réel (Reverb) ; moteur d'exécution local.

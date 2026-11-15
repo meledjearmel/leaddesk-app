@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:leaddesk_app/live_office/live_office_screen.dart';
 import 'package:leaddesk_app/main.dart';
 
 Future<void> _pumpApp(WidgetTester tester, Size size) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  await tester.pumpWidget(const LeadDeskApp());
+  await tester.pumpWidget(const LeadDeskApp(home: LiveOfficeScreen()));
   await tester.pump(const Duration(milliseconds: 100));
 }
 

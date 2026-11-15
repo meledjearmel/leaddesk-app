@@ -15,6 +15,9 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:leaddesk_app/app/theme.dart';
+import 'package:leaddesk_app/auth/auth_screens.dart';
+import 'package:leaddesk_app/auth/auth_service.dart';
+import 'package:leaddesk_app/auth/session.dart';
 import 'package:leaddesk_app/live_office/live_office_screen.dart';
 import 'package:leaddesk_app/live_office/scene/office_scene.dart';
 import 'package:leaddesk_app/live_office/scene/pixel_people.dart';
@@ -122,7 +125,10 @@ void main() {
 
       final key = GlobalKey();
       await tester.pumpWidget(
-        RepaintBoundary(key: key, child: const LeadDeskApp()),
+        RepaintBoundary(
+          key: key,
+          child: const LeadDeskApp(home: LiveOfficeScreen()),
+        ),
       );
       await tester.pump(const Duration(milliseconds: 600));
 
@@ -134,6 +140,78 @@ void main() {
         image.dispose();
       });
     });
+  }
+
+  for (final setup in const <bool>[false, true]) {
+    testWidgets(
+      'capture l\'écran ${setup ? 'de création' : 'de connexion'}',
+      skip: skip,
+      (tester) async {
+        await _loadFont('Segoe UI', const <String>[
+          r'C:\Windows\Fonts\segoeui.ttf',
+          r'C:\Windows\Fonts\seguisb.ttf',
+          r'C:\Windows\Fonts\segoeuib.ttf',
+        ]);
+        final flutterRoot =
+            Platform.environment['FLUTTER_ROOT'] ??
+            File(Platform.resolvedExecutable)
+                .parent
+                .parent
+                .parent
+                .parent
+                .parent
+                .parent
+                .path;
+        await _loadFont('MaterialIcons', <String>[
+          '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+        ]);
+        tester.view.physicalSize = const Size(1440, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+
+        final key = GlobalKey();
+        final auth = AuthService();
+        await tester.pumpWidget(
+          RepaintBoundary(
+            key: key,
+            child: MaterialApp(
+              debugShowCheckedModeBanner: false,
+              theme: buildLeadDeskTheme(),
+              home: setup
+                  ? CompanySetupScreen(
+                      auth: auth,
+                      session: Session(
+                        baseUrl: Uri.parse('https://leaddesk.test/api/v1/'),
+                        token: 't',
+                        userName: 'Armel Meledje',
+                        email: 'ceo@exemple.test',
+                      ),
+                      onCreated: (_) {},
+                      onSignOut: () {},
+                    )
+                  : SignInScreen(
+                      auth: auth,
+                      initialServer: 'leaddesk.exemple.com',
+                      onSignedIn: (_) {},
+                      onDemo: () {},
+                    ),
+            ),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 300));
+
+        await tester.runAsync(() async {
+          final boundary =
+              key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+          final image = await boundary.toImage();
+          await _writePng(
+            image,
+            '$dir/${setup ? 'creation_entreprise' : 'connexion'}.png',
+          );
+          image.dispose();
+        });
+      },
+    );
   }
 
   for (final (preview, edit) in const <(bool, bool)>[

@@ -1,0 +1,145 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+import '../api/api_client.dart';
+import '../app/theme.dart';
+import '../live_office/live_office_screen.dart';
+import '../live_office/office_source.dart';
+import 'auth_screens.dart';
+import 'auth_service.dart';
+import 'session.dart';
+
+/// Porte d'entrée de l'application (D-017) : session gardée → bureau ;
+/// compte sans entreprise → création ; sinon → connexion.
+///
+/// `LD_API_URL` et `LD_API_TOKEN`, s'ils sont définis, ouvrent directement
+/// le bureau (développement).
+class AppGate extends StatefulWidget {
+  const AppGate({
+    required this.store,
+    required this.auth,
+    this.httpClient,
+    super.key,
+  });
+
+  final SessionStore store;
+  final AuthService auth;
+
+  /// Client HTTP du bureau ; par défaut un client réel.
+  final http.Client? httpClient;
+
+  @override
+  State<AppGate> createState() => _AppGateState();
+}
+
+enum _Stage { loading, signIn, setup, office, demo }
+
+class _AppGateState extends State<AppGate> {
+  _Stage _stage = _Stage.loading;
+  Session? _session;
+  ApiClient? _client;
+  String _lastServer = '';
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_restore());
+  }
+
+  Future<void> _restore() async {
+    final environment = ApiConfig.fromEnvironment();
+    if (environment != null) {
+      _open(
+        Session(
+          baseUrl: environment.baseUrl,
+          token: environment.token,
+          userName: '',
+          email: '',
+          companyName: '',
+        ),
+        persist: false,
+      );
+      return;
+    }
+    final session = await widget.store.read();
+    if (!mounted) {
+      return;
+    }
+    if (session == null) {
+      setState(() => _stage = _Stage.signIn);
+    } else {
+      _open(session, persist: false);
+    }
+  }
+
+  void _open(Session session, {bool persist = true}) {
+    if (persist) {
+      unawaited(widget.store.write(session));
+    }
+    _client?.close();
+    _lastServer = session.baseUrl.toString().replaceFirst(
+      RegExp(r'/api/v1/?$'),
+      '',
+    );
+    setState(() {
+      _session = session;
+      if (session.companyName == null) {
+        _client = null;
+        _stage = _Stage.setup;
+      } else {
+        _client = ApiClient(session.config, httpClient: widget.httpClient);
+        _stage = _Stage.office;
+      }
+    });
+  }
+
+  Future<void> _signOut() async {
+    final session = _session;
+    setState(() {
+      _stage = _Stage.signIn;
+      _session = null;
+    });
+    _client?.close();
+    _client = null;
+    await widget.store.clear();
+    if (session != null) {
+      await widget.auth.signOut(session);
+    }
+  }
+
+  @override
+  void dispose() {
+    _client?.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return switch (_stage) {
+      _Stage.loading => const ColoredBox(color: LdColors.background),
+      _Stage.signIn => SignInScreen(
+        auth: widget.auth,
+        initialServer: _lastServer,
+        onSignedIn: _open,
+        onDemo: () => setState(() => _stage = _Stage.demo),
+      ),
+      _Stage.setup => CompanySetupScreen(
+        auth: widget.auth,
+        session: _session!,
+        onCreated: _open,
+        onSignOut: _signOut,
+      ),
+      _Stage.office => LiveOfficeScreen(
+        key: ValueKey<Uri>(_session!.baseUrl),
+        source: ApiOfficeSource(_client!),
+        onSignOut: _signOut,
+      ),
+      _Stage.demo => LiveOfficeScreen(
+        source: const DemoOfficeSource(),
+        onSignOut: () => setState(() => _stage = _Stage.signIn),
+      ),
+    };
+  }
+}

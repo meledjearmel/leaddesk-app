@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'app/theme.dart';
-import 'live_office/live_office_screen.dart';
+import 'auth/app_gate.dart';
+import 'auth/auth_service.dart';
+import 'auth/session.dart';
 
 void main() {
   runApp(const LeadDeskApp());
@@ -9,7 +11,10 @@ void main() {
 
 /// Racine de l'application de bureau LeadDesk.
 class LeadDeskApp extends StatelessWidget {
-  const LeadDeskApp({super.key});
+  const LeadDeskApp({super.key, this.home});
+
+  /// Écran d'accueil ; par défaut la porte d'entrée (connexion, puis bureau).
+  final Widget? home;
 
   @override
   Widget build(BuildContext context) {
@@ -17,7 +22,7 @@ class LeadDeskApp extends StatelessWidget {
       title: 'LeadDesk',
       debugShowCheckedModeBanner: false,
       theme: buildLeadDeskTheme(),
-      home: const LiveOfficeScreen(),
+      home: home ?? AppGate(store: SecureSessionStore(), auth: AuthService()),
     );
   }
 }

@@ -8,6 +8,7 @@ class IconRail extends StatelessWidget {
   const IconRail({
     required this.agentPanelOpen,
     required this.onToggleAgentPanel,
+    this.onSignOut,
     super.key,
   });
 
@@ -16,6 +17,9 @@ class IconRail extends StatelessWidget {
   final bool agentPanelOpen;
   final VoidCallback onToggleAgentPanel;
 
+  /// Déconnexion du compte ; absente en démonstration.
+  final VoidCallback? onSignOut;
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -23,7 +27,7 @@ class IconRail extends StatelessWidget {
       child: Column(
         children: <Widget>[
           const SizedBox(height: 4),
-          const _LogoTile(),
+          const LeadDeskLogo(),
           const SizedBox(height: 18),
           const LdIconButton(icon: Icons.search, tooltip: 'Rechercher'),
           const SizedBox(height: 6),
@@ -56,6 +60,14 @@ class IconRail extends StatelessWidget {
             icon: Icons.settings_outlined,
             tooltip: 'Réglages',
           ),
+          if (onSignOut case final signOut?) ...<Widget>[
+            const SizedBox(height: 6),
+            LdIconButton(
+              icon: Icons.logout,
+              tooltip: 'Se déconnecter',
+              onTap: signOut,
+            ),
+          ],
           const SizedBox(height: 4),
         ],
       ),
@@ -64,24 +76,26 @@ class IconRail extends StatelessWidget {
 }
 
 /// Logo de LeadDesk : une grille de neuf points dont un point ambre.
-class _LogoTile extends StatelessWidget {
-  const _LogoTile();
+class LeadDeskLogo extends StatelessWidget {
+  const LeadDeskLogo({this.size = 40, super.key});
+
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       label: 'LeadDesk',
       child: Container(
-        width: 40,
-        height: 40,
+        width: size,
+        height: size,
         decoration: BoxDecoration(
           color: const Color(0xFF1A1A19),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(size * 0.3),
           border: Border.all(color: LdColors.borderStrong),
         ),
         child: Center(
           child: SizedBox.square(
-            dimension: 18,
+            dimension: size * 0.45,
             child: CustomPaint(painter: _LogoPainter()),
           ),
         ),

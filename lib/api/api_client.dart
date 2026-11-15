@@ -62,7 +62,8 @@ class ApiClient {
   Map<String, String> get _headers => <String, String>{
     HttpHeaders.acceptHeader: 'application/json',
     HttpHeaders.contentTypeHeader: 'application/json',
-    HttpHeaders.authorizationHeader: 'Bearer ${config.token}',
+    if (config.token.isNotEmpty)
+      HttpHeaders.authorizationHeader: 'Bearer ${config.token}',
   };
 
   Uri _uri(String path) =>
@@ -88,6 +89,27 @@ class ApiClient {
         .put(_uri(path), headers: _headers, body: jsonEncode(body))
         .timeout(timeout);
     return _data(response);
+  }
+
+  /// Réponse JSON complète, pour les routes qui n'enveloppent pas leur
+  /// réponse dans `data` (jeton de connexion).
+  Future<Map<String, Object?>> postRaw(
+    String path,
+    Map<String, Object?> body,
+  ) async {
+    final response = await _http
+        .post(_uri(path), headers: _headers, body: jsonEncode(body))
+        .timeout(timeout);
+    _data(response);
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    return decoded is Map<String, Object?> ? decoded : <String, Object?>{};
+  }
+
+  Future<void> delete(String path) async {
+    final response = await _http
+        .delete(_uri(path), headers: _headers)
+        .timeout(timeout);
+    _data(response);
   }
 
   /// Liste d'objets contenue dans `data`.

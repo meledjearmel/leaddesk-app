@@ -134,6 +134,17 @@ Questions ouvertes pour Armel : qui peut proposer un aménagement (une IA dédi�
 - **Effet** : le plan du CEO entre en vigueur sans approbation (`PUT /office/plan`). Les propositions en attente deviennent périmées (D-012), puis le bureau est rechargé. Sans serveur, le plan s'applique à la démonstration.
 - **Logique** : `PlanEditor` (lib/office), sans interface, testé à part.
 - **Limites** : pas d'édition directe sur la scène isométrique (le plan vu de dessus est plus précis pour placer à la case) ; sous 820 px de large, le panneau ne tient pas et le mode ne s'affiche pas.
+### D-017 · Connexion du CEO et session sur le poste
+
+- **Décision** : au lancement, une porte d'entrée (`AppGate`) choisit l'écran.
+  - Session gardée → bureau.
+  - Compte sans entreprise → création de l'entreprise (nom, modèle « Studio de développement » ou « Entreprise vierge » ; RM-01, RM-02).
+  - Sinon → connexion : adresse du serveur, complétée en `https://…/api/v1/` ; e-mail ; mot de passe ; lien vers la démonstration.
+- **Jeton** : délivré par `POST /auth/token` pour cet appareil (« LeadDesk · nom du poste ») et gardé avec la session dans le stockage sécurisé de Windows (`flutter_secure_storage`, chiffré par le système), jamais en clair sur le disque.
+- **Sortie** : la déconnexion, dans le rail d'icônes, révoque le jeton sur le serveur (`DELETE /auth/token`) et efface la session. Un jeton refusé par le serveur (401) ramène à la connexion.
+- **Développement** : `LD_API_URL` et `LD_API_TOKEN` (D-014) ouvrent toujours le bureau directement, sans rien enregistrer.
+- **Style** : carte centrée, dans le style des panneaux du bureau (images 06, 07 et 09), sur un fond sombre à lueur chaude ; bouton principal blanc comme « Nouvel objectif ».
+- **Limites** : pas de création de compte ni de mot de passe oublié dans l'application (l'API et Fortify les permettent, à ajouter si besoin) ; un seul compte par poste.
 ## Propositions de mise à jour des documents de conception
 
 - `REGLES_METIER_LEADDESK.md` (RM-02) : ajouter qu'une entreprise vierge contient toujours les unités RH et Moyens généraux, chacune avec un poste de responsable sans agent (D-013).

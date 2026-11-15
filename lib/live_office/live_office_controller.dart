@@ -226,6 +226,11 @@ class LiveOfficeController extends ChangeNotifier {
   /// Dernière erreur de chargement, en français ; `null` si tout va bien.
   String? get loadError => _loadError;
 
+  /// Vrai quand le serveur a refusé le jeton (révoqué ou expiré) : il faut
+  /// se reconnecter.
+  bool get signedOut => _signedOut;
+  bool _signedOut = false;
+
   /// Remplace les départements, le plan et les agents.
   void apply(OfficeSnapshot snapshot, {bool fromServer = false}) {
     _departments = snapshot.departments;
@@ -255,6 +260,7 @@ class LiveOfficeController extends ChangeNotifier {
       apply(await source.load(), fromServer: fromServer);
     } on ApiException catch (error) {
       _loadError = error.message;
+      _signedOut = error.status == 401;
       notifyListeners();
     } on Exception {
       _loadError = 'Serveur injoignable : données de démonstration.';

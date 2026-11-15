@@ -24,7 +24,10 @@ import 'widgets/proposal_panel.dart';
 /// Écran principal : rail d'icônes, panneau des agents, bureau vivant et
 /// panneau de conversation.
 class LiveOfficeScreen extends StatefulWidget {
-  const LiveOfficeScreen({super.key, this.source});
+  const LiveOfficeScreen({super.key, this.source, this.onSignOut});
+
+  /// Déconnexion, proposée dans le rail d'icônes.
+  final VoidCallback? onSignOut;
 
   /// Source des données ; par défaut le serveur s'il est configuré
   /// (`LD_API_URL`, `LD_API_TOKEN`), sinon la démonstration.
@@ -127,7 +130,9 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
     _controller.addListener(_syncScene);
     final source = widget.source ?? _defaultSource();
     if (source != null) {
-      unawaited(_controller.load(source));
+      unawaited(
+        _controller.load(source, fromServer: source is! DemoOfficeSource),
+      );
     }
   }
 
@@ -142,6 +147,13 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
   /// Change la scène de la caméra quand on passe du plateau à la salle, et
   /// recompose le plateau quand les données changent.
   void _syncScene() {
+    if (_controller.signedOut && widget.onSignOut != null) {
+      // Jeton refusé par le serveur : retour à l'écran de connexion.
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => widget.onSignOut?.call(),
+      );
+      return;
+    }
     final mode = _controller.mode;
     final revision = _controller.revision;
     if (mode == _shownMode && revision == _shownRevision) {
@@ -218,6 +230,7 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                     IconRail(
                       agentPanelOpen: showAgents,
                       onToggleAgentPanel: _controller.toggleAgentPanel,
+                      onSignOut: widget.onSignOut,
                     ),
                     const SizedBox(width: 6),
                     if (showAgents) ...<Widget>[
