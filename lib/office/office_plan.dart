@@ -62,12 +62,16 @@ class PlacedRoom {
   final int rows;
 
   RoomType get type => RoomCatalog.of(typeId);
-  String get label => name ?? type.name;
+
+  /// Nom affiché ; l'identifiant du type si ce type est inconnu (plan venu
+  /// d'une IA ou d'une version plus récente), pour que [OfficePlan.validate]
+  /// signale le problème au lieu de planter.
+  String get label => name ?? RoomCatalog.byId(typeId)?.name ?? typeId;
   int get right => x + cols;
   int get bottom => y + rows;
 
-  /// Postes de travail de la salle.
-  int get seats => type.seatsFor(rows);
+  /// Postes de travail de la salle ; aucun pour un type inconnu.
+  int get seats => RoomCatalog.byId(typeId)?.seatsFor(rows) ?? 0;
 
   bool overlaps(PlacedRoom other) {
     return x < other.right &&
