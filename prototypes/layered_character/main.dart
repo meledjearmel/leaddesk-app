@@ -9,6 +9,7 @@
 // La mesure écrit aussi une capture PNG à côté du fichier JSON.
 //
 // Code jetable : rien ici n'est importé par lib/.
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -143,8 +144,18 @@ class LayeredCharacterGame extends FlameGame {
     _character = CharacterComponent()..position = size / 2;
     await add(_character);
     await _apply(appearance);
-    if (benchSwaps > 0) {
-      await _runBench();
+  }
+
+  bool _benchStarted = false;
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    // La mesure démarre après le chargement : le personnage est alors affiché
+    // et chaque changement de calque se voit à l'écran.
+    if (benchSwaps > 0 && !_benchStarted) {
+      _benchStarted = true;
+      unawaited(_runBench());
     }
   }
 
