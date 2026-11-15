@@ -1,0 +1,86 @@
+name: prototypes
+
+# Construit les prototypes de la phase 0 pour Windows, les exécute en mode
+# mesure et publie les rapports JSON et les captures PNG.
+# Le runner n'a pas de carte graphique : le rendu est logiciel, les mesures
+# de fluidité sont donc un plancher pessimiste.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - prototypes/**
+      - .github/workflows/prototypes.yml
+
+permissions:
+  contents: read
+
+jobs:
+  bench-windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.2
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Describe the machine
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force bench | Out-Null
+          $cpu = (Get-CimInstance Win32_Processor | Select-Object -First 1)
+          $gpu = (Get-CimInstance Win32_VideoController | ForEach-Object Name) -join ', '
+          @{ cpu = $cpu.Name; cores = $cpu.NumberOfLogicalProcessors; gpu = $gpu } |
+            ConvertTo-Json | Tee-Object bench/machine.json
+
+      - name: Build and run the isometric room (prototype 1)
+        shell: pwsh
+        run: |
+          flutter build windows --profile -t prototypes/iso_room/main.dart
+          $exe = Resolve-Path build\windows\x64\runner\Profile\leaddesk.exe
+          foreach ($agents in 30, 100, 300) {
+            $env:AGENTS = "$agents"
+            $env:BENCH_SECONDS = '15'
+            $env:BENCH_OUT = Join-Path $PWD "bench\iso_room_$agents.json"
+            $process = Start-Process $exe -PassThru
+            if (-not $process.WaitForExit(120000)) {
+              $process.Kill()
+              throw "Le prototype n'a pas rendu son rapport pour $agents agents."
+            }
+            Get-Content $env:BENCH_OUT
+          }
+
+      - name: Build and run the layered character (prototype 2)
+        shell: pwsh
+        run: |
+          flutter build windows --profile -t prototypes/layered_character/main.dart
+          $exe = Resolve-Path build\windows\x64\runner\Profile\leaddesk.exe
+          $env:BENCH_SWAPS = '200'
+          $env:BENCH_OUT = Join-Path $PWD 'bench\layered_character.json'
+          $process = Start-Process $exe -PassThru
+          if (-not $process.WaitForExit(120000)) {
+            $process.Kill()
+            throw "Le prototype n'a pas rendu son rapport."
+          }
+          Get-Content $env:BENCH_OUT
+
+      - name: Publish reports and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prototypes-bench
+          path: bench/
