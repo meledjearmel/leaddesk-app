@@ -1,0 +1,94 @@
+// Outil de contrôle visuel, inactif par défaut.
+//
+// La chaîne de compilation Windows n'est pas installée sur le poste (D-005) :
+// ces captures permettent de comparer l'écran aux images de référence sans
+// lancer l'application.
+//
+// Usage (PowerShell) :
+//   $env:LD_CAPTURE_DIR = 'C:\chemin\vers\un\dossier'
+//   flutter test test/tools/capture_test.dart
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:leaddesk_app/live_office/scene/office_scene.dart';
+import 'package:leaddesk_app/main.dart';
+
+Future<void> _loadFont(String family, List<String> paths) async {
+  final loader = FontLoader(family);
+  for (final path in paths) {
+    final file = File(path);
+    if (file.existsSync()) {
+      final bytes = file.readAsBytesSync();
+      loader.addFont(Future<ByteData>.value(ByteData.sublistView(bytes)));
+    }
+  }
+  await loader.load();
+}
+
+Future<void> _writePng(ui.Image image, String path) async {
+  final data = await image.toByteData(format: ui.ImageByteFormat.png);
+  File(path)
+    ..createSync(recursive: true)
+    ..writeAsBytesSync(data!.buffer.asUint8List());
+}
+
+void main() {
+  final dir = Platform.environment['LD_CAPTURE_DIR'];
+  final skip = dir == null || dir.isEmpty;
+
+  testWidgets('capture la scène seule', skip: skip, (tester) async {
+    await tester.runAsync(() async {
+      final image = renderOfficeFrame(0);
+      await _writePng(image, '$dir/scene.png');
+      image.dispose();
+    });
+  });
+
+  for (final size in const <Size>[Size(1440, 900), Size(1920, 1080)]) {
+    testWidgets('capture l\'écran en ${size.width.toInt()}', skip: skip, (
+      tester,
+    ) async {
+      // flutter_tester se trouve dans bin/cache/artifacts/engine/<plateforme>.
+      final flutterRoot =
+          Platform.environment['FLUTTER_ROOT'] ??
+          File(Platform.resolvedExecutable)
+              .parent
+              .parent
+              .parent
+              .parent
+              .parent
+              .parent
+              .path;
+      await _loadFont('Segoe UI', const <String>[
+        r'C:\Windows\Fonts\segoeui.ttf',
+        r'C:\Windows\Fonts\seguisb.ttf',
+        r'C:\Windows\Fonts\segoeuib.ttf',
+      ]);
+      await _loadFont('MaterialIcons', <String>[
+        '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+      ]);
+
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final key = GlobalKey();
+      await tester.pumpWidget(
+        RepaintBoundary(key: key, child: const LeadDeskApp()),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+
+      await tester.runAsync(() async {
+        final boundary =
+            key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final image = await boundary.toImage();
+        await _writePng(image, '$dir/ecran_${size.width.toInt()}.png');
+        image.dispose();
+      });
+    });
+  }
+}

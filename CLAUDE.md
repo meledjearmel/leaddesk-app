@@ -14,6 +14,8 @@ Dossier : `C:\Users\armel.meledje\OneDrive\Documents\LeadDeck`
 
 **Cible visuelle principale du bureau vivant (consigne d'Armel, 15 novembre 2026) :** l'image `04-bureau-pixel-detaille-1.png` — bureau sombre et chaleureux, bois, cloisons vitrées, bibliothèques, plantes, lampes, serveurs, agents à leur poste, très haut niveau de détail. Voir `docs/decisions.md` (D-004).
 
+**Thème unique (consigne d'Armel, 15 novembre 2026) :** plus de version claire du bureau. L'interface suit les images 04 à 09 dans le moindre détail ; voir D-007 et D-008. Contrôle visuel sans lancer l'application : `test/tools/capture_test.dart` (D-009).
+
 Ne jamais modifier ces documents : proposer les changements dans `docs/decisions.md`. Ne pas transformer une proposition en décision, ne pas inventer d'exigence.
 
 ## Rôle du dépôt et frontière serveur / application

@@ -41,7 +41,30 @@ Chaque entrée : décision, raison, alternatives. Les décisions communes aux de
 - **Liaison** : jeton Sanctum par appareil, client maison du protocole Pusher de Reverb, canaux privés autorisés par jeton (`docs/prototypes/03-liaison-sanctum-reverb.md`).
 - **Agents** : boucle écrite en Dart dans l'application, bac à sable par dossier autorisé, fournisseurs derrière une interface commune, un enregistrement de coût par appel (`docs/prototypes/04-boucle-agent.md`).
 
+## Écran du bureau vivant
+
+### D-007 · Un seul thème pour le bureau : sombre et chaleureux
+
+- **Décision** : le 15 novembre 2026, Armel a tranché la question laissée ouverte par D-004 : il n'y a plus de version claire du bureau. Le thème sombre et chaleureux est le seul thème ; l'écran doit suivre les images 04 à 09 dans le moindre détail (disposition, proportions, couleurs, composants).
+- **Raison** : consigne directe d'Armel.
+- **Conséquence** : écart assumé à RM-52 et au plan (« deux thèmes », « thème clair par défaut ») ; le bouton « Thème : Bureau » de la barre de contrôle reste affiché comme sur la référence mais ne bascule rien. Un test cite cet écart (`test/widget_test.dart`).
+- **Alternatives** : garder le thème clair pour la phase 11 (écarté par Armel).
+
+### D-008 · Écran construit en widgets Flutter, scène dessinée par le code
+
+- **Décision** : l'écran (`lib/live_office/`) reprend la disposition de la référence : rail d'icônes, panneau des agents, carte au centre avec étiquettes, barre de projet, zoom, minicarte et barre de contrôle en verre dépoli, panneau de conversation. La scène isométrique est dessinée par le code (`scene/office_scene.dart`), sans lissage, à 512 × 384 pixels d'art, puis agrandie sans filtrage ; quatre images d'ambiance alternent (écrans, voyants, gestes) et un agent se déplace.
+- **Ce qui n'est pas repris de la référence** (consigne du `CLAUDE.md`, RM-53) : le nom et l'enseigne (remplacés par LeadDesk et son monogramme), les logos des fournisseurs de modèles (remplacés par des pictogrammes génériques), les dessins eux-mêmes (tous les graphismes sont originaux). L'interface est en français.
+- **Raison** : obtenir tout de suite un écran fidèle et léger, sans attendre les planches Aseprite / Tiled.
+- **Lien avec D-006** : Flame reste l'approche retenue pour le bureau de la phase 5 (agents nombreux, tri par profondeur dynamique). Le dessin actuel n'utilise que `Canvas` : il se réutilise tel quel dans un composant Flame. Les données affichées sont des données de démonstration (`DemoData`), à remplacer par l'API à partir de la phase 2.
+- **Alternatives** : brancher Flame dès maintenant (plus lourd pour un écran encore statique) ; attendre les graphismes dessinés à la main.
+
+### D-009 · Contrôle visuel par capture de test
+
+- **Décision** : `test/tools/capture_test.dart` rend la scène et l'écran complet en PNG quand la variable `LD_CAPTURE_DIR` est définie ; sans elle, ces tests sont ignorés.
+- **Raison** : la chaîne de compilation Windows manque toujours sur le poste (D-005) ; la capture permet de comparer l'écran aux images de référence avant de commiter, comme le demande le `CLAUDE.md`.
+- **Alternatives** : tests « golden » versionnés (fragiles tant que le dessin évolue).
+
 ## Propositions de mise à jour des documents de conception
 
 - `Synthese_decisions_fonctionnelles_V1.md` : y reporter les approches retenues (D-006), comme le demande le critère de fin de la phase 0.
-- `REGLES_METIER_LEADDESK.md` (RM-52), `PLAN_DE_REALISATION_LEADDESK.md` (principe « un seul thème, clair et pastel, jusqu'à la phase 11 ») et `inspiration_design/README.md` : si Armel le confirme, le thème sombre et chaleureux devient le premier thème construit, avec l'image 04 comme référence principale (D-004).
+- `REGLES_METIER_LEADDESK.md` (RM-52), `Synthese_decisions_fonctionnelles_V1.md` (section 9), `CONTEXTE_LEADDESK_CLAUDE_CODE.md`, `PLAN_DE_REALISATION_LEADDESK.md` (« un seul thème, clair et pastel, jusqu'à la phase 11 », « thème sombre » en phase 11, « calques (thème clair) ») et `inspiration_design/README.md` : remplacer les deux thèmes par un thème unique, sombre et chaleureux, avec les images 04 à 09 comme référence (D-004, D-007).

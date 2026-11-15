@@ -39,4 +39,23 @@ Bilan court de chaque étape et de chaque phase : fait, testé, reste à faire.
 
 **Reste à faire**
 
-- Confirmer avec Armel que le thème sombre et chaleureux (image 04) passe en premier (D-004).
+- ~~Confirmer avec Armel que le thème sombre et chaleureux (image 04) passe en premier (D-004).~~ Tranché le 15 novembre 2026 : thème sombre unique (D-007).
+
+## Écran du bureau vivant (15 novembre 2026)
+
+**Fait**
+
+- Thème sombre unique (D-007) et écran complet d'après les images 04 à 09 : rail, panneau des agents (recherche, groupes par poste), carte isométrique en pixel art dessinée par le code, étiquettes et bulles accrochées aux agents, barre de projet, zoom, minicarte, barre de contrôle (pause, direct, vitesse), panneau de conversation (fil, contexte partagé, envoi).
+- Déplacement et zoom de la carte bornés (jamais de vide), disposition qui s'adapte à la largeur de la fenêtre, animations coupées si le système le demande.
+- Outil de capture pour le contrôle visuel (D-009).
+
+**Testé**
+
+- 56 tests verts (dont 19 nouveaux), analyse stricte sans alerte.
+- Écran comparé aux images de référence par capture en 1440 × 900 et 1920 × 1080.
+
+**Réserves**
+
+- Écran vu par capture seulement : jamais lancé sous Windows sur le poste (D-005). Le survol, le glisser et la molette sont couverts par les tests de la caméra, pas par un essai à la main.
+- Données de démonstration ; aucun appel à l'API.
+- Les boutons sans fonction derrière eux (rail, « Connecter un agent », « Nouvel objectif », choix du projet) sont affichés mais inactifs.
