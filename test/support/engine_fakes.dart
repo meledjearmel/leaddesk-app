@@ -21,6 +21,15 @@ class FakeServer {
   String approval;
   String usageStatus;
   String decisionStatus;
+
+  /// Statut renvoyé par GET task-runs/11.
+  String runStatus = 'running';
+
+  /// Si renseigné, la limite de coût est atteinte à cet enregistrement.
+  int? pauseCostAt;
+
+  /// Exécutions ouvertes de l'ordinateur 4.
+  List<Map<String, Object?>> openRuns = <Map<String, Object?>>[];
   final String mcpText;
   String folder = '';
   final List<(String, String, Map<String, Object?>)> requests =
@@ -69,7 +78,10 @@ class FakeServer {
           <String, Object?>{'kind': 'documentation', 'path': folder},
         ];
       case ('POST', 'task-runs/11/usage'):
-        data = <String, Object?>{'status': usageStatus};
+        final count = bodies('POST', 'task-runs/11/usage').length;
+        data = <String, Object?>{
+          'status': count == pauseCostAt ? 'paused_cost' : usageStatus,
+        };
       case ('POST', 'task-runs/11/approvals'):
         data = <String, Object?>{
           'outcome': approval,
@@ -78,6 +90,11 @@ class FakeServer {
       case ('GET', 'decisions/9'):
         data = <String, Object?>{'id': 9, 'status': decisionStatus};
       case ('GET', 'task-runs/11'):
+        data = <String, Object?>{'id': 11, 'status': runStatus};
+      case ('GET', 'task-runs'):
+        data = openRuns;
+      case ('POST', 'task-runs/11/resume'):
+        runStatus = 'running';
         data = <String, Object?>{'id': 11, 'status': 'running'};
       case ('POST', 'task-runs/11/finish'):
         data = <String, Object?>{'id': 11};

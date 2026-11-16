@@ -5,6 +5,7 @@ import '../api/api_client.dart';
 import 'anthropic.dart';
 import 'mcp_client.dart';
 import 'model.dart';
+import 'run_journal.dart';
 import 'workspace.dart';
 
 /// Comment une exécution s'est arrêtée.
@@ -38,9 +39,13 @@ class RunReport {
     required this.summary,
     required this.costMicros,
     required this.steps,
+    this.runId,
   });
 
   final RunOutcome outcome;
+
+  /// Exécution sur le serveur, `null` si elle n'a pas pu être ouverte.
+  final int? runId;
 
   /// Dernier texte de l'agent, ou la raison de l'arrêt.
   final String summary;
@@ -82,7 +87,9 @@ class AgentRunner {
     this.approvalTimeout = const Duration(minutes: 30),
     this.retryDelay = const Duration(seconds: 2),
     Workspace Function(Map<String, String> folders)? workspaceFactory,
-  }) : _workspaceFactory = workspaceFactory ?? Workspace.new;
+    RunJournal? journal,
+  }) : _workspaceFactory = workspaceFactory ?? Workspace.new,
+       journal = journal ?? FileRunJournal();
 
   /// Client d'API du CEO (le runner se place au nom de l'agent).
   final ApiClient api;
@@ -92,6 +99,9 @@ class AgentRunner {
   final Duration approvalTimeout;
   final Duration retryDelay;
   final Workspace Function(Map<String, String> folders) _workspaceFactory;
+
+  /// Où en est chaque exécution, pour la reprendre (D-025).
+  final RunJournal journal;
 
   final StreamController<RunStep> _steps =
       StreamController<RunStep>.broadcast();
@@ -142,6 +152,8 @@ class AgentRunner {
         _ => null,
       };
       if (serverOutcome != null) {
+        // Fin définitive : le journal local n'a plus d'usage.
+        await journal.delete(ref.id);
         try {
           await agentApi.post('task-runs/${ref.id}/finish', <String, Object?>{
             'outcome': serverOutcome,
@@ -169,6 +181,7 @@ class AgentRunner {
         summary: summary,
         costMicros: cost,
         steps: List<RunStep>.unmodifiable(log),
+        runId: ref.id,
       );
     }
 
@@ -201,15 +214,36 @@ class AgentRunner {
     final tools = toolsFor(permissions, workspace);
     final mcp = LeadDeskMcp(agentApi);
     final system = systemPrompt(context, workspace);
+    // Reprise : on repart de la conversation gardée sur ce poste.
+    final saved = await journal.read(ref.id);
     final messages = <Map<String, Object?>>[
-      <String, Object?>{
-        'role': 'user',
-        'content':
-            'Réalise ta tâche. Quand tu as fini, termine par un compte rendu '
-            'court : ce que tu as fait, les livrables produits, ce qui reste.',
-      },
+      ...?saved?.messages,
+      if (saved == null || saved.messages.isEmpty)
+        <String, Object?>{
+          'role': 'user',
+          'content':
+              'Réalise ta tâche. Quand tu as fini, termine par un compte '
+              'rendu court : ce que tu as fait, les livrables produits, ce '
+              'qui reste.',
+        },
     ];
-    note('info', 'Début : ${tools.length} outils disponibles.');
+    if (saved != null) {
+      cost = saved.costMicros;
+      deliverables.addAll(saved.deliverables);
+      note('info', 'Reprise : ${tools.length} outils disponibles.');
+    } else {
+      note('info', 'Début : ${tools.length} outils disponibles.');
+    }
+
+    Future<void> save() => journal.write(
+      ref.id,
+      RunState(
+        messages: messages,
+        costMicros: cost,
+        deliverables: deliverables,
+      ),
+    );
+    await save();
 
     var lastText = '';
     for (var turn = 0; turn < maxTurns; turn++) {
@@ -238,6 +272,11 @@ class AgentRunner {
 
       // 3. Coût réel au serveur ; une limite atteinte arrête tout.
       final status = await _recordUsage(agentApi, ref.id, response);
+      if (status == 'paused_cost' || status == 'paused') {
+        // Le coût de ce tour est dépensé : il compte à la reprise, même si
+        // sa réponse est écartée (le tour sera rejoué).
+        await save();
+      }
       if (status == 'paused_cost') {
         note('info', 'Limite de coût atteinte : en attente du CEO.');
         return finish(
@@ -269,6 +308,7 @@ class AgentRunner {
             'Réponse trop longue pour une seule étape.',
           );
         case StopReason.pauseTurn:
+          await save();
           continue;
         case StopReason.toolUse || StopReason.other:
           break;
@@ -302,6 +342,7 @@ class AgentRunner {
         results.add(result.toJson());
       }
       messages.add(<String, Object?>{'role': 'user', 'content': results});
+      await save();
     }
     return finish(
       RunOutcome.failed,

@@ -137,3 +137,11 @@ Décisions : D-012, D-013. Ordre : 0 → 1 → 2 → 5 → 3 → 4 → 6. Chaque
 **Testé** : 150 tests verts ; capture `decisions`.
 
 **Reste à faire** : essai réel du moteur avec une clé Anthropic ; reprise d'une exécution en pause.
+
+## Reprise des exécutions (16 novembre 2026)
+
+**Fait** : journal local des exécutions, reprise automatique à l'ouverture, reprise après une pause du CEO, reprise dès que la limite de coût est relevée dans « Décisions », section « À reprendre » (D-025). Défaut corrigé : le coût du tour qui déclenche une pause était perdu à la reprise.
+
+**Testé** : 153 tests verts ; capture `execution_choix`.
+
+**Reste à faire** : essai réel du moteur avec une clé Anthropic (chaîne de compilation Windows à installer) ; suite du plan (back-office, Dashboard, activités et tâches dans l'application).

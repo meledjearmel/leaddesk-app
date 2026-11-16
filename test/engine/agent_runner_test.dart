@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:leaddesk_app/api/api_client.dart';
 import 'package:leaddesk_app/engine/agent_runner.dart';
 import 'package:leaddesk_app/engine/anthropic.dart';
+import 'package:leaddesk_app/engine/run_journal.dart';
 import 'package:leaddesk_app/engine/workspace.dart';
 import 'package:path/path.dart' as p;
 
@@ -24,7 +25,11 @@ void main() {
 
   tearDown(() => tmp.deleteSync(recursive: true));
 
-  (AgentRunner, FakeServer) build(FakeServer server, ScriptedModel model) {
+  (AgentRunner, FakeServer) build(
+    FakeServer server,
+    ScriptedModel model, {
+    RunJournal? journal,
+  }) {
     server.folder = docs;
     final api = ApiClient(
       ApiConfig(baseUrl: Uri.parse('https://ld.test/api/v1/'), token: 't'),
@@ -36,6 +41,7 @@ void main() {
         model: model,
         approvalPoll: Duration.zero,
         retryDelay: Duration.zero,
+        journal: journal ?? MemoryRunJournal(),
       ),
       server,
     );
@@ -252,4 +258,51 @@ void main() {
     expect((call['params']! as Map<String, Object?>)['name'], 'office.context');
     expect(lastToolResult(model)['content'], '{"departments":[]}');
   });
+
+  test(
+    'reprend après une pause pour coût, là où elle s\'était arrêtée',
+    () async {
+      final journal = MemoryRunJournal();
+      final server = FakeServer();
+      final first = ScriptedModel(<Object>[
+        toolTurn('write_file', <String, Object?>{
+          'path': 'documentation/brouillon.md',
+          'content': 'Début.',
+        }),
+        toolTurn('read_file', <String, Object?>{
+          'path': 'documentation/notes.md',
+        }),
+      ]);
+      final (runner, _) = build(server, first, journal: journal);
+      // Le premier tour passe, le second atteint la limite.
+      server.pauseCostAt = 2;
+      final paused = await runner.start(taskId: 3, agentId: 7, deviceId: 4);
+
+      expect(paused.outcome, RunOutcome.pausedCost);
+      expect(paused.runId, 11);
+      final saved = journal.states[11]!;
+      expect(saved.deliverables, <String>['documentation/brouillon.md']);
+      // Les deux tours payés avant la pause.
+      expect(saved.costMicros, 2000);
+
+      // Le CEO relève la limite : l'exécution reprend avec sa conversation.
+      server.usageStatus = 'running';
+      final second = ScriptedModel(<Object>[endTurn('Fini après reprise.')]);
+      final (resumer, _) = build(server, second, journal: journal);
+      final report = await resumer.run(
+        const TaskRunRef(id: 11, taskId: 3, agentId: 7, deviceId: 4),
+      );
+
+      expect(report.outcome, RunOutcome.completed);
+      expect(report.costMicros, 1000 + 1000 + 500);
+      // Le modèle relit la conversation d'avant la pause.
+      expect(second.seenMessages.single, hasLength(saved.messages.length));
+      expect(jsonEncode(second.seenMessages.single), contains('brouillon.md'));
+      // Le compte rendu cite le livrable écrit avant la pause.
+      final message = server.bodies('POST', 'activities/5/messages').single;
+      expect(jsonEncode(message), contains('brouillon.md'));
+      // Fin définitive : le journal local est effacé.
+      expect(journal.states, isEmpty);
+    },
+  );
 }

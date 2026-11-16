@@ -347,6 +347,23 @@ class _Launcher extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       children: <Widget>[
+        if (c.pending.isNotEmpty) ...<Widget>[
+          const _Section('À reprendre'),
+          for (final run in c.pending)
+            _Choice(
+              leading: _Initials(name: c.agentNameOf(run.agentId), size: 30),
+              title: c.taskTitle(run.taskId),
+              subtitle: switch (run.status) {
+                'paused_cost' => 'Limite de coût atteinte',
+                'paused' => 'Mise en pause par vous',
+                _ => 'Interrompue à la fermeture',
+              },
+              selected: false,
+              trailing: run.status == 'paused_cost' ? 'À décider' : 'Reprendre',
+              onTap: () => c.resume(run),
+            ),
+          const SizedBox(height: 10),
+        ],
         if (c.tasks.isNotEmpty) ...<Widget>[
           const _Section('Tâche'),
           for (final t in c.tasks)
@@ -397,6 +414,7 @@ class _Choice extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.leading,
+    this.trailing,
   });
 
   final String title;
@@ -404,6 +422,9 @@ class _Choice extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final Widget? leading;
+
+  /// Action écrite à droite (« Reprendre »).
+  final String? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -456,6 +477,15 @@ class _Choice extends StatelessWidget {
               ),
               if (selected)
                 const Icon(Icons.check, size: 16, color: LdColors.amber),
+              if (trailing case final label?)
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: hovered ? LdColors.text : LdColors.amber,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
             ],
           ),
         ),
@@ -515,6 +545,13 @@ class _StepList extends StatelessWidget {
             color: report.outcome == RunOutcome.completed
                 ? LdColors.green
                 : LdColors.amber,
+          ),
+        if (c.waitingForDecision && !c.running)
+          const _Note(
+            icon: Icons.hourglass_empty,
+            text:
+                'Relevez la limite dans « Décisions » : l\'agent reprendra '
+                'de lui-même là où il s\'est arrêté.',
           ),
         if (c.error case final message? when !c.running)
           _Note(icon: Icons.error_outline, text: message, color: _red),

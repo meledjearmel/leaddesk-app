@@ -196,6 +196,16 @@ Questions ouvertes pour Armel : qui peut proposer un aménagement (une IA dédi�
 - **Actions** : approuver, refuser, ou demander des précisions avec une question obligatoire (RM-25). Pour une limite de coût atteinte, l'écran montre la dépense et la limite, et propose une nouvelle limite au double de l'actuelle, modifiable (`new_limit_micros`, RM-36). Pour une action d'agent, il montre ce que l'agent veut faire (« Écrire un fichier » et son chemin).
 - **Fraîcheur** : la file est lue à l'ouverture du bureau, puis toutes les 5 secondes tant que le panneau est ouvert : un agent attend peut-être la réponse.
 - **Limites** : les règles et les plans de bureau se tranchent ici sans aperçu détaillé ; le plan garde son écran de validation (D-015).
+### D-025 · Reprise d'une exécution
+
+- **Journal local** : `RunJournal` (`lib/engine/run_journal.dart`) garde, pour chaque exécution ouverte, la conversation avec le modèle, le coût cumulé et les livrables écrits. C'est un fichier JSON par exécution dans `%APPDATA%\LeadDesk\runs`, écrit de façon atomique après chaque tour complet. Il contient ce que l'agent a lu : il reste sur l'ordinateur hôte (D-023) et il est effacé à la fin définitive (terminée ou échouée).
+- **Reprise** : `AgentRunner.run` repart de la conversation gardée. Le tour qui a déclenché une pause est rejoué, mais son coût, déjà dépensé, reste compté.
+- **Quand** :
+  - **Application fermée en cours de route** : à l'ouverture, les exécutions encore « en cours » sur ce poste (`GET task-runs?device_id=…&open=1`) reprennent d'elles-mêmes si la clé est présente (plan, phase 4).
+  - **Pause du CEO** : « Reprendre » dans le panneau lève la pause (`POST task-runs/{id}/resume`) puis relance l'agent.
+  - **Limite de coût** : l'application surveille l'exécution toutes les 5 secondes. Dès que le CEO relève la limite dans « Décisions », l'agent reprend ; s'il refuse, la surveillance s'arrête et le journal est effacé.
+- **Interface** : section « À reprendre » en tête du panneau « Exécution » (« Reprendre », ou « À décider » pour une limite de coût).
+- **Limites** : sans journal local (autre poste, fichier effacé), l'exécution reprend du début avec le même contexte de tâche.
 ## Propositions de mise à jour des documents de conception
 
 - `REGLES_METIER_LEADDESK.md` (RM-02) : ajouter qu'une entreprise vierge contient toujours les unités RH et Moyens généraux, chacune avec un poste de responsable sans agent (D-013).

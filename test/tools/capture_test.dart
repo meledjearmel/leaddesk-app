@@ -21,6 +21,7 @@ import 'package:leaddesk_app/auth/auth_service.dart';
 import 'package:leaddesk_app/auth/session.dart';
 import 'package:leaddesk_app/engine/host.dart';
 import 'package:leaddesk_app/engine/run_controller.dart';
+import 'package:leaddesk_app/engine/run_journal.dart';
 import 'package:leaddesk_app/live_office/live_office_screen.dart';
 import 'package:leaddesk_app/live_office/scene/office_scene.dart';
 import 'package:leaddesk_app/live_office/scene/pixel_people.dart';
@@ -349,6 +350,16 @@ void main() {
         addTearDown(() => docs.deleteSync(recursive: true));
         File('${docs.path}/notes.md').writeAsStringSync('Livrer lundi.');
         final server = FakeServer()..folder = docs.path;
+        if (!finished) {
+          server.openRuns = <Map<String, Object?>>[
+            <String, Object?>{
+              'id': 11,
+              'task_id': 4,
+              'agent_id': 8,
+              'status': 'paused_cost',
+            },
+          ];
+        }
         final api = ApiClient(
           ApiConfig(baseUrl: Uri.parse('https://ld.test/api/v1/'), token: 't'),
           httpClient: server.client,
@@ -359,6 +370,7 @@ void main() {
           api: api,
           keys: ProviderKeys(vault),
           host: HostDevice(api: api, vault: vault, name: 'POSTE-CEO'),
+          journal: MemoryRunJournal(),
           modelFactory: (_) => ScriptedModel(<Object>[
             toolTurn('read_file', <String, Object?>{
               'path': 'documentation/notes.md',

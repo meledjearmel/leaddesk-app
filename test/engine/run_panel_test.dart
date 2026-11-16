@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:leaddesk_app/api/api_client.dart';
 import 'package:leaddesk_app/app/theme.dart';
+import 'package:leaddesk_app/engine/agent_runner.dart';
 import 'package:leaddesk_app/engine/host.dart';
 import 'package:leaddesk_app/engine/run_controller.dart';
+import 'package:leaddesk_app/engine/run_journal.dart';
 import 'package:leaddesk_app/live_office/widgets/run_panel.dart';
 import 'package:path/path.dart' as p;
 
@@ -16,6 +18,7 @@ Future<RunController> engineFor(
   FakeServer server,
   ScriptedModel model, {
   String? key = 'sk-ant-test-a1b2',
+  RunJournal? journal,
 }) async {
   final api = ApiClient(
     ApiConfig(baseUrl: Uri.parse('https://ld.test/api/v1/'), token: 't'),
@@ -29,6 +32,8 @@ Future<RunController> engineFor(
     api: api,
     keys: ProviderKeys(vault),
     host: HostDevice(api: api, vault: vault, name: 'POSTE-CEO'),
+    journal: journal ?? MemoryRunJournal(),
+    watchEvery: const Duration(milliseconds: 20),
     modelFactory: (_) => model,
   );
 }
@@ -132,6 +137,76 @@ void main() {
 
     expect(engine.keyMask, '…9z8y');
     expect(find.text('POSTE-CEO · enregistré, en ligne'), findsOneWidget);
+    engine.dispose();
+  });
+
+  test('reprend seule une exécution interrompue par la fermeture', () async {
+    final server = FakeServer()..folder = tmp.path;
+    server.openRuns = <Map<String, Object?>>[
+      <String, Object?>{
+        'id': 11,
+        'task_id': 3,
+        'agent_id': 7,
+        'status': 'running',
+      },
+    ];
+    // Conversation gardée avant la fermeture.
+    final journal = MemoryRunJournal()
+      ..states[11] = const RunState(
+        messages: <Map<String, Object?>>[
+          <String, Object?>{'role': 'user', 'content': 'Réalise ta tâche.'},
+        ],
+        costMicros: 700,
+      );
+    final model = ScriptedModel(<Object>[endTurn('Repris et terminé.')]);
+    final engine = await engineFor(server, model, journal: journal);
+
+    await engine.load();
+
+    expect(engine.report?.outcome, RunOutcome.completed);
+    expect(engine.report?.costMicros, 1200);
+    expect(engine.steps.first.text, startsWith('Reprise'));
+    expect(server.bodies('POST', 'tasks/3/runs'), isEmpty);
+    expect(journal.states, isEmpty);
+    engine.dispose();
+  });
+
+  test('reprend dès que le CEO relève la limite de coût', () async {
+    final server = FakeServer()..folder = tmp.path;
+    server.pauseCostAt = 1;
+    server.runStatus = 'paused_cost';
+    final model = ScriptedModel(<Object>[
+      toolTurn('read_file', <String, Object?>{
+        'path': 'documentation/notes.md',
+      }),
+      toolTurn('read_file', <String, Object?>{
+        'path': 'documentation/notes.md',
+      }),
+      endTurn('Fini.'),
+    ]);
+    final engine = await engineFor(server, model);
+    await engine.load();
+
+    await engine.launch();
+    expect(engine.report?.outcome, RunOutcome.pausedCost);
+    expect(engine.waitingForDecision, isTrue);
+
+    // Décision approuvée dans « Décisions » : le serveur repasse en cours.
+    server.runStatus = 'running';
+    for (
+      var i = 0;
+      i < 100 && engine.report?.outcome != RunOutcome.completed;
+      i++
+    ) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+
+    expect(engine.report?.outcome, RunOutcome.completed);
+    expect(engine.waitingForDecision, isFalse);
+    expect(
+      server.bodies('POST', 'task-runs/11/finish').single['outcome'],
+      'completed',
+    );
     engine.dispose();
   });
 }
