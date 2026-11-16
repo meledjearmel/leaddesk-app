@@ -169,6 +169,27 @@ Questions ouvertes pour Armel : qui peut proposer un aménagement (une IA dédi�
 ### D-021 · Mot de passe oublié dans l'application
 
 - **Décision** : le lien « Mot de passe oublié ? » sous le mot de passe ouvre un écran qui demande l'adresse du serveur et l'e-mail. Il envoie `POST /auth/forgot-password` (API D-041), puis affiche le message du serveur et la marche à suivre : ouvrir le lien reçu, choisir le nouveau mot de passe sur la page web, revenir se connecter. L'adresse du serveur suit d'un écran à l'autre.
+### D-022 · Moteur d'exécution local (phase 4)
+
+- **Décision** : les agents s'exécutent dans l'application, sur l'ordinateur hôte, pas sur le serveur. `AgentRunner` (`lib/engine/agent_runner.dart`) ouvre l'exécution (`POST tasks/{id}/runs`), puis agit au nom de l'agent (`X-LeadDesk-Agent`) :
+  1. il lit le contexte de la tâche (RM-33) et les dossiers autorisés du projet sur ce poste ;
+  2. il fait travailler le modèle tour par tour ;
+  3. il consigne chaque appel avec son coût réel (`task-runs/{id}/usage`) ;
+  4. il clôt l'exécution (`finish`) et poste le compte rendu dans la conversation de l'activité.
+- **Fournisseur** : Anthropic d'abord, derrière l'interface `ModelProvider`. Appel direct de l'API Messages en HTTP (version 2026-10-21), modèle `claude-opus-5-5`, réflexion adaptative, effort `high`. Le coût vient des tarifs connus seulement : un modèle sans tarif est consigné sans coût, jamais avec un coût inventé.
+- **Clé** : saisie dans l'onglet « Réglages » du panneau « Exécution », gardée dans le stockage sécurisé de Windows. Elle n'est envoyée qu'à Anthropic, jamais au serveur LeadDesk.
+- **Poste hôte** : `POST /devices` avec un `installation_id` (UUID v4) gardé localement, donc sans doublon d'un lancement à l'autre. Un signe de vie part chaque minute.
+- **Outils** : le modèle ne voit que les outils que le poste ne refuse pas. Il peut lister, lire et écrire dans les dossiers autorisés (D-023). Avec la permission `office.propose_plan`, il a aussi `office_context` et `office_propose_plan` via le MCP interne (Moyens généraux). Avant chaque outil de fichier, le serveur répond « permis », « interdit » ou « soumis au CEO ». Dans ce dernier cas, le moteur attend la décision, sauf si l'exécution est arrêtée entre-temps.
+- **Arrêts** : une limite de coût atteinte (`paused_cost`) arrête la boucle sans clore l'exécution, qui attend le CEO (RM-36). Le moteur relance deux fois après une erreur passagère du fournisseur (429, 5xx, réseau), avec une attente croissante. Il s'arrête après 40 tours.
+- **Compte rendu** : le dernier texte de l'agent est posté dans la conversation de l'activité (`POST activities/{id}/messages`), avec les livrables écrits en références de fichiers (chemin et poste, jamais le contenu).
+- **Interface** : bouton « Exécution » dans le rail, panneau de droite au gabarit de la conversation (image 07). On y choisit la tâche et l'agent (le responsable par défaut), on suit les étapes en direct, puis on voit le bilan et le coût.
+- **Limites** : pas encore de reprise d'une exécution en pause depuis l'application, ni d'exécution en arrière-plan quand le panneau est fermé.
+
+### D-023 · Espace de travail de l'agent
+
+- **Décision** : `Workspace` (`lib/engine/workspace.dart`) résout chaque chemin demandé sous la forme `nature/chemin` (`documentation/notes.md`) dans le dossier autorisé de cette nature. Il refuse les chemins absolus, les remontées (`..`) et les liens symboliques qui mènent hors du dossier : le chemin réel est vérifié, y compris pour un fichier à créer, par son premier parent existant.
+- **Bornes** : lecture tronquée à 200 Ko, liste tronquée à 500 entrées, écriture en texte avec création des dossiers intermédiaires.
+- **Confidentialité** : le contenu des fichiers ne va qu'au fournisseur IA. Le serveur LeadDesk ne reçoit que des chemins, des résumés d'action et des coûts.
 ## Propositions de mise à jour des documents de conception
 
 - `REGLES_METIER_LEADDESK.md` (RM-02) : ajouter qu'une entreprise vierge contient toujours les unités RH et Moyens généraux, chacune avec un poste de responsable sans agent (D-013).

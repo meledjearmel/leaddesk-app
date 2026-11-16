@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../api/api_client.dart';
 import '../api/realtime.dart';
 import '../app/theme.dart';
+import '../engine/run_controller.dart';
 import 'live_office_controller.dart';
 import 'office_camera.dart';
 import 'office_source.dart';
@@ -21,6 +22,7 @@ import 'widgets/map_overlays.dart';
 import 'widgets/office_view.dart';
 import 'widgets/plan_editor_view.dart';
 import 'widgets/proposal_panel.dart';
+import 'widgets/run_panel.dart';
 
 /// Écran principal : rail d'icônes, panneau des agents, bureau vivant et
 /// panneau de conversation.
@@ -30,7 +32,11 @@ class LiveOfficeScreen extends StatefulWidget {
     this.source,
     this.onSignOut,
     this.realtime,
+    this.engine,
   });
+
+  /// Moteur d'exécution local (D-022) ; absent en démonstration.
+  final RunController? engine;
 
   /// Temps réel de l'entreprise (D-020) ; absent en démonstration.
   final RealtimeClient? realtime;
@@ -61,6 +67,7 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
   OfficeViewMode? _shownMode;
   int _shownRevision = 0;
   ApiClient? _client;
+  bool _runOpen = false;
   final List<StreamSubscription<Object?>> _realtimeSubscriptions =
       <StreamSubscription<Object?>>[];
 
@@ -145,6 +152,9 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
         realtime.statuses.listen(_controller.setRealtimeStatus),
       ]);
       unawaited(realtime.start());
+    }
+    if (widget.engine case final engine?) {
+      unawaited(engine.load());
     }
     final source = widget.source ?? _defaultSource();
     if (source != null) {
@@ -241,8 +251,16 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                     !editing &&
                     _controller.openProposal != null &&
                     width >= LiveOfficeScreen.agentPanelBreakpoint;
+                final engine = widget.engine;
+                final showRun =
+                    engine != null &&
+                    _runOpen &&
+                    !editing &&
+                    !showProposal &&
+                    width >= LiveOfficeScreen.agentPanelBreakpoint;
                 final showConversation =
                     !showProposal &&
+                    !showRun &&
                     _controller.conversationOpen &&
                     width >= LiveOfficeScreen.conversationBreakpoint;
                 return Row(
@@ -252,6 +270,10 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                       agentPanelOpen: showAgents,
                       onToggleAgentPanel: _controller.toggleAgentPanel,
                       onSignOut: widget.onSignOut,
+                      runPanelOpen: showRun,
+                      onToggleRunPanel: engine == null
+                          ? null
+                          : () => setState(() => _runOpen = !_runOpen),
                     ),
                     const SizedBox(width: 6),
                     if (showAgents) ...<Widget>[
@@ -265,6 +287,12 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                     ] else if (showProposal) ...<Widget>[
                       const SizedBox(width: 8),
                       ProposalPanel(controller: _controller),
+                    ] else if (showRun) ...<Widget>[
+                      const SizedBox(width: 8),
+                      RunPanel(
+                        controller: engine,
+                        onClose: () => setState(() => _runOpen = false),
+                      ),
                     ] else if (showConversation) ...<Widget>[
                       const SizedBox(width: 8),
                       ConversationPanel(controller: _controller),

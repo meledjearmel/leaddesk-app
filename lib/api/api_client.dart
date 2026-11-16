@@ -51,11 +51,28 @@ class ApiException implements Exception {
 
 /// Client JSON minimal de l'API `/api/v1`.
 class ApiClient {
-  ApiClient(this.config, {http.Client? httpClient})
-    : _http = httpClient ?? http.Client();
+  ApiClient(
+    this.config, {
+    http.Client? httpClient,
+    this.extraHeaders = const <String, String>{},
+  }) : _http = httpClient ?? http.Client();
 
   final ApiConfig config;
   final http.Client _http;
+
+  /// En-têtes ajoutés à chaque requête (agent qui agit).
+  final Map<String, String> extraHeaders;
+
+  /// Même connexion, au nom d'un agent : tout ce qu'il fait est journalisé
+  /// à son nom (RM-34). Ne pas fermer le client obtenu séparément.
+  ApiClient asAgent(int agentId) => ApiClient(
+    config,
+    httpClient: _http,
+    extraHeaders: <String, String>{'X-LeadDesk-Agent': '$agentId'},
+  );
+
+  /// Client HTTP partagé (pour les appels qui ne passent pas par `data`).
+  http.Client get httpClient => _http;
 
   static const Duration timeout = Duration(seconds: 15);
 
@@ -64,7 +81,11 @@ class ApiClient {
     HttpHeaders.contentTypeHeader: 'application/json',
     if (config.token.isNotEmpty)
       HttpHeaders.authorizationHeader: 'Bearer ${config.token}',
+    ...extraHeaders,
   };
+
+  /// En-têtes d'authentification, pour un appel fait à côté (MCP).
+  Map<String, String> get headers => _headers;
 
   Uri _uri(String path) =>
       config.baseUrl.resolve(path.startsWith('/') ? path.substring(1) : path);

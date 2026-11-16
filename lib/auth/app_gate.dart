@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 import '../api/api_client.dart';
 import '../api/realtime.dart';
 import '../app/theme.dart';
+import '../engine/host.dart';
+import '../engine/run_controller.dart';
 import '../live_office/live_office_screen.dart';
 import '../live_office/office_source.dart';
 import 'auth_screens.dart';
@@ -23,8 +25,13 @@ class AppGate extends StatefulWidget {
     required this.auth,
     this.httpClient,
     this.realtimeConnector,
+    this.vault,
     super.key,
   });
+
+  /// Coffre local (clé du fournisseur, identifiant d'installation) ; par
+  /// défaut le stockage sécurisé de Windows.
+  final LocalVault? vault;
 
   final SessionStore store;
   final AuthService auth;
@@ -46,6 +53,7 @@ class _AppGateState extends State<AppGate> {
   Session? _session;
   ApiClient? _client;
   RealtimeClient? _realtime;
+  RunController? _engine;
   String _lastServer = '';
 
   @override
@@ -100,6 +108,12 @@ class _AppGateState extends State<AppGate> {
           _client!,
           connector: widget.realtimeConnector,
         );
+        final vault = widget.vault ?? SecureVault();
+        _engine = RunController(
+          api: _client!,
+          keys: ProviderKeys(vault),
+          host: HostDevice(api: _client!, vault: vault),
+        );
         _stage = _Stage.office;
       }
     });
@@ -119,6 +133,8 @@ class _AppGateState extends State<AppGate> {
   }
 
   void _closeClients() {
+    _engine?.dispose();
+    _engine = null;
     final realtime = _realtime;
     _realtime = null;
     if (realtime != null) {
@@ -179,6 +195,7 @@ class _AppGateState extends State<AppGate> {
         key: ValueKey<Uri>(_session!.baseUrl),
         source: ApiOfficeSource(_client!),
         realtime: _realtime,
+        engine: _engine,
         onSignOut: _signOut,
       ),
       _Stage.demo => LiveOfficeScreen(

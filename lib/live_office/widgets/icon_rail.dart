@@ -9,6 +9,8 @@ class IconRail extends StatelessWidget {
     required this.agentPanelOpen,
     required this.onToggleAgentPanel,
     this.onSignOut,
+    this.runPanelOpen = false,
+    this.onToggleRunPanel,
     super.key,
   });
 
@@ -16,6 +18,10 @@ class IconRail extends StatelessWidget {
 
   final bool agentPanelOpen;
   final VoidCallback onToggleAgentPanel;
+
+  /// Panneau « Exécution » (moteur local) ; absent en démonstration.
+  final bool runPanelOpen;
+  final VoidCallback? onToggleRunPanel;
 
   /// Déconnexion du compte ; absente en démonstration.
   final VoidCallback? onSignOut;
@@ -44,6 +50,15 @@ class IconRail extends StatelessWidget {
             icon: Icons.monitor_heart_outlined,
             tooltip: 'Activité',
           ),
+          if (onToggleRunPanel case final toggle?) ...<Widget>[
+            const SizedBox(height: 6),
+            LdIconButton(
+              icon: Icons.play_circle_outline,
+              tooltip: 'Exécution',
+              active: runPanelOpen,
+              onTap: toggle,
+            ),
+          ],
           const SizedBox(height: 6),
           const LdIconButton(icon: Icons.power_outlined, tooltip: 'Connexions'),
           const SizedBox(height: 6),

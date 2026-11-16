@@ -121,3 +121,11 @@ Décisions : D-012, D-013. Ordre : 0 → 1 → 2 → 5 → 3 → 4 → 6. Chaque
 **Testé** : 134 tests verts dans l'application, 274 dans l'API ; capture `connexion`.
 
 **Reste à faire** : moteur d'exécution local.
+
+## Moteur d'exécution local (16 novembre 2026)
+
+**Fait** : moteur d'agent avec Anthropic (D-022), espace de travail limité aux dossiers autorisés (D-023), clé Anthropic dans le stockage sécurisé, enregistrement du poste et signe de vie, panneau « Exécution » (choix de la tâche et de l'agent, étapes en direct, bilan), compte rendu posté dans la conversation de l'activité.
+
+**Testé** : 148 tests verts. Les nouveaux utilisent un faux serveur et un faux modèle : lecture, livrable, refus hors dossier et lien symbolique, approbations, limite de coût, reprise, outils du bureau, poste, clé et panneau. Captures `execution_choix` et `execution_terminee`.
+
+**Reste à faire** : essai réel avec une clé Anthropic sur le serveur de développement ; reprise d'une exécution en pause ; autres fournisseurs.
