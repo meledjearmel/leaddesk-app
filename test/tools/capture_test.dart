@@ -25,11 +25,13 @@ import 'package:leaddesk_app/live_office/live_office_screen.dart';
 import 'package:leaddesk_app/live_office/scene/office_scene.dart';
 import 'package:leaddesk_app/live_office/scene/pixel_people.dart';
 import 'package:leaddesk_app/live_office/scene/plan_scene.dart';
+import 'package:leaddesk_app/live_office/widgets/decisions_panel.dart';
 import 'package:leaddesk_app/live_office/widgets/run_panel.dart';
 import 'package:leaddesk_app/main.dart';
 import 'package:leaddesk_app/office/office_planner.dart';
 import 'package:leaddesk_app/office/studio_template.dart';
 
+import '../decisions/decisions_test.dart' show FakeDecisions, controllerFor;
 import '../support/engine_fakes.dart';
 import '../support/proposal_source.dart';
 
@@ -413,4 +415,59 @@ void main() {
       },
     );
   }
+
+  testWidgets('capture la file des décisions', skip: skip, (tester) async {
+    await _loadFont('Segoe UI', const <String>[
+      r'C:\Windows\Fonts\segoeui.ttf',
+      r'C:\Windows\Fonts\seguisb.ttf',
+      r'C:\Windows\Fonts\segoeuib.ttf',
+    ]);
+    final flutterRoot =
+        Platform.environment['FLUTTER_ROOT'] ??
+        File(Platform.resolvedExecutable)
+            .parent
+            .parent
+            .parent
+            .parent
+            .parent
+            .parent
+            .path;
+    await _loadFont('MaterialIcons', <String>[
+      '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+    ]);
+    tester.view.physicalSize = const Size(380, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final decisions = controllerFor(FakeDecisions());
+    addTearDown(decisions.dispose);
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: key,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: buildLeadDeskTheme(),
+          home: Scaffold(
+            backgroundColor: LdColors.background,
+            body: Padding(
+              padding: const EdgeInsets.all(8),
+              child: DecisionsPanel(controller: decisions, onClose: () {}),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.runAsync(decisions.load);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.runAsync(() async {
+      final boundary =
+          key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await boundary.toImage();
+      await _writePng(image, '$dir/decisions.png');
+      image.dispose();
+    });
+  });
 }

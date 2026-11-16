@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../api/api_client.dart';
 import '../api/realtime.dart';
 import '../app/theme.dart';
+import '../decisions/decisions_controller.dart';
 import '../engine/run_controller.dart';
 import 'live_office_controller.dart';
 import 'office_camera.dart';
@@ -16,6 +17,7 @@ import 'scene/plan_scene.dart';
 import 'widgets/agent_panel.dart';
 import 'widgets/common.dart';
 import 'widgets/conversation_panel.dart';
+import 'widgets/decisions_panel.dart';
 import 'widgets/editor_panel.dart';
 import 'widgets/icon_rail.dart';
 import 'widgets/map_overlays.dart';
@@ -33,7 +35,11 @@ class LiveOfficeScreen extends StatefulWidget {
     this.onSignOut,
     this.realtime,
     this.engine,
+    this.decisions,
   });
+
+  /// File des décisions du CEO ; absente en démonstration.
+  final DecisionsController? decisions;
 
   /// Moteur d'exécution local (D-022) ; absent en démonstration.
   final RunController? engine;
@@ -68,6 +74,18 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
   int _shownRevision = 0;
   ApiClient? _client;
   bool _runOpen = false;
+  bool _decisionsOpen = false;
+
+  void _setDecisionsOpen(bool open) {
+    setState(() {
+      _decisionsOpen = open;
+      if (open) {
+        _runOpen = false;
+      }
+    });
+    widget.decisions?.watch(watching: open);
+  }
+
   final List<StreamSubscription<Object?>> _realtimeSubscriptions =
       <StreamSubscription<Object?>>[];
 
@@ -153,6 +171,7 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
       ]);
       unawaited(realtime.start());
     }
+    unawaited(widget.decisions?.load());
     if (widget.engine case final engine?) {
       unawaited(engine.load());
     }
@@ -234,7 +253,10 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
         child: Padding(
           padding: const EdgeInsets.all(8),
           child: ListenableBuilder(
-            listenable: _controller,
+            listenable: Listenable.merge(<Listenable?>[
+              _controller,
+              widget.decisions,
+            ]),
             builder: (context, _) => LayoutBuilder(
               builder: (context, constraints) {
                 final width = constraints.maxWidth;
@@ -258,9 +280,17 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                     !editing &&
                     !showProposal &&
                     width >= LiveOfficeScreen.agentPanelBreakpoint;
+                final decisions = widget.decisions;
+                final showDecisions =
+                    decisions != null &&
+                    _decisionsOpen &&
+                    !editing &&
+                    !showProposal &&
+                    width >= LiveOfficeScreen.agentPanelBreakpoint;
                 final showConversation =
                     !showProposal &&
                     !showRun &&
+                    !showDecisions &&
                     _controller.conversationOpen &&
                     width >= LiveOfficeScreen.conversationBreakpoint;
                 return Row(
@@ -273,7 +303,17 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                       runPanelOpen: showRun,
                       onToggleRunPanel: engine == null
                           ? null
-                          : () => setState(() => _runOpen = !_runOpen),
+                          : () => setState(() {
+                              _runOpen = !_runOpen;
+                              if (_runOpen && _decisionsOpen) {
+                                _setDecisionsOpen(false);
+                              }
+                            }),
+                      decisionsOpen: showDecisions,
+                      decisionCount: decisions?.count ?? 0,
+                      onToggleDecisions: decisions == null
+                          ? null
+                          : () => _setDecisionsOpen(!_decisionsOpen),
                     ),
                     const SizedBox(width: 6),
                     if (showAgents) ...<Widget>[
@@ -287,6 +327,12 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                     ] else if (showProposal) ...<Widget>[
                       const SizedBox(width: 8),
                       ProposalPanel(controller: _controller),
+                    ] else if (showDecisions) ...<Widget>[
+                      const SizedBox(width: 8),
+                      DecisionsPanel(
+                        controller: decisions,
+                        onClose: () => _setDecisionsOpen(false),
+                      ),
                     ] else if (showRun) ...<Widget>[
                       const SizedBox(width: 8),
                       RunPanel(

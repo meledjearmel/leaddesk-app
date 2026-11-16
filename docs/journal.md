@@ -129,3 +129,11 @@ Décisions : D-012, D-013. Ordre : 0 → 1 → 2 → 5 → 3 → 4 → 6. Chaque
 **Testé** : 148 tests verts. Les nouveaux utilisent un faux serveur et un faux modèle : lecture, livrable, refus hors dossier et lien symbolique, approbations, limite de coût, reprise, outils du bureau, poste, clé et panneau. Captures `execution_choix` et `execution_terminee`.
 
 **Reste à faire** : essai réel avec une clé Anthropic sur le serveur de développement ; reprise d'une exécution en pause ; autres fournisseurs.
+
+## File des décisions (16 novembre 2026)
+
+**Fait** : panneau « Décisions » avec la pastille du nombre de demandes ouvertes ; on y approuve, refuse ou demande des précisions, et on relève une limite de coût (D-024).
+
+**Testé** : 150 tests verts ; capture `decisions`.
+
+**Reste à faire** : essai réel du moteur avec une clé Anthropic ; reprise d'une exécution en pause.

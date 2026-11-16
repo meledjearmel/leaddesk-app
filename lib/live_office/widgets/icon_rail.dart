@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/logo.dart';
+import '../../app/theme.dart';
 import 'common.dart';
 
 /// Rail d'icônes : logo, navigation principale, réglages.
@@ -11,8 +12,16 @@ class IconRail extends StatelessWidget {
     this.onSignOut,
     this.runPanelOpen = false,
     this.onToggleRunPanel,
+    this.decisionsOpen = false,
+    this.decisionCount = 0,
+    this.onToggleDecisions,
     super.key,
   });
+
+  /// File des décisions du CEO ; absente en démonstration.
+  final bool decisionsOpen;
+  final int decisionCount;
+  final VoidCallback? onToggleDecisions;
 
   static const double width = 52;
 
@@ -64,10 +73,50 @@ class IconRail extends StatelessWidget {
           const SizedBox(height: 6),
           const LdIconButton(icon: Icons.group_outlined, tooltip: 'Équipe'),
           const SizedBox(height: 6),
-          const LdIconButton(
-            icon: Icons.notifications_none,
-            tooltip: 'Notifications',
-          ),
+          if (onToggleDecisions case final toggle?)
+            Stack(
+              clipBehavior: Clip.none,
+              children: <Widget>[
+                LdIconButton(
+                  icon: Icons.notifications_none,
+                  tooltip: decisionCount == 0
+                      ? 'Décisions'
+                      : 'Décisions · $decisionCount en attente',
+                  active: decisionsOpen,
+                  onTap: toggle,
+                ),
+                if (decisionCount > 0)
+                  Positioned(
+                    right: 3,
+                    top: 3,
+                    child: IgnorePointer(
+                      child: Container(
+                        constraints: const BoxConstraints(minWidth: 15),
+                        height: 15,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: LdColors.amber,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          decisionCount > 9 ? '9+' : '$decisionCount',
+                          style: const TextStyle(
+                            color: Color(0xFF161514),
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            )
+          else
+            const LdIconButton(
+              icon: Icons.notifications_none,
+              tooltip: 'Notifications',
+            ),
           const Spacer(),
           const LdIconButton(icon: Icons.layers_outlined, tooltip: 'Projets'),
           const SizedBox(height: 6),

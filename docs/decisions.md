@@ -190,6 +190,12 @@ Questions ouvertes pour Armel : qui peut proposer un aménagement (une IA dédi�
 - **Décision** : `Workspace` (`lib/engine/workspace.dart`) résout chaque chemin demandé sous la forme `nature/chemin` (`documentation/notes.md`) dans le dossier autorisé de cette nature. Il refuse les chemins absolus, les remontées (`..`) et les liens symboliques qui mènent hors du dossier : le chemin réel est vérifié, y compris pour un fichier à créer, par son premier parent existant.
 - **Bornes** : lecture tronquée à 200 Ko, liste tronquée à 500 entrées, écriture en texte avec création des dossiers intermédiaires.
 - **Confidentialité** : le contenu des fichiers ne va qu'au fournisseur IA. Le serveur LeadDesk ne reçoit que des chemins, des résumés d'action et des coûts.
+### D-024 · File des décisions du CEO dans l'application
+
+- **Décision** : la cloche du rail ouvre le panneau « Décisions », à droite, au gabarit de la conversation. Une pastille ambrée donne le nombre de demandes ouvertes. Le panneau liste les demandes en attente et en précisions (`GET /decisions?status=…`), les plus récentes d'abord.
+- **Actions** : approuver, refuser, ou demander des précisions avec une question obligatoire (RM-25). Pour une limite de coût atteinte, l'écran montre la dépense et la limite, et propose une nouvelle limite au double de l'actuelle, modifiable (`new_limit_micros`, RM-36). Pour une action d'agent, il montre ce que l'agent veut faire (« Écrire un fichier » et son chemin).
+- **Fraîcheur** : la file est lue à l'ouverture du bureau, puis toutes les 5 secondes tant que le panneau est ouvert : un agent attend peut-être la réponse.
+- **Limites** : les règles et les plans de bureau se tranchent ici sans aperçu détaillé ; le plan garde son écran de validation (D-016).
 ## Propositions de mise à jour des documents de conception
 
 - `REGLES_METIER_LEADDESK.md` (RM-02) : ajouter qu'une entreprise vierge contient toujours les unités RH et Moyens généraux, chacune avec un poste de responsable sans agent (D-013).

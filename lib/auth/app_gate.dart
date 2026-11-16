@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../api/api_client.dart';
 import '../api/realtime.dart';
 import '../app/theme.dart';
+import '../decisions/decisions_controller.dart';
 import '../engine/host.dart';
 import '../engine/run_controller.dart';
 import '../live_office/live_office_screen.dart';
@@ -54,6 +55,7 @@ class _AppGateState extends State<AppGate> {
   ApiClient? _client;
   RealtimeClient? _realtime;
   RunController? _engine;
+  DecisionsController? _decisions;
   String _lastServer = '';
 
   @override
@@ -114,6 +116,7 @@ class _AppGateState extends State<AppGate> {
           keys: ProviderKeys(vault),
           host: HostDevice(api: _client!, vault: vault),
         );
+        _decisions = DecisionsController(_client!);
         _stage = _Stage.office;
       }
     });
@@ -134,6 +137,8 @@ class _AppGateState extends State<AppGate> {
 
   void _closeClients() {
     _engine?.dispose();
+    _decisions?.dispose();
+    _decisions = null;
     _engine = null;
     final realtime = _realtime;
     _realtime = null;
@@ -196,6 +201,7 @@ class _AppGateState extends State<AppGate> {
         source: ApiOfficeSource(_client!),
         realtime: _realtime,
         engine: _engine,
+        decisions: _decisions,
         onSignOut: _signOut,
       ),
       _Stage.demo => LiveOfficeScreen(
