@@ -92,6 +92,28 @@ class PlanGeometry {
       ),
   ];
 
+  /// Emprise d'un département dans l'image (sol et murs de ses salles) ;
+  /// `null` s'il n'a aucune salle.
+  Rect? departmentBounds(String departmentId) {
+    Rect? bounds;
+    for (final room in plan.rooms) {
+      if (room.departmentId != departmentId) {
+        continue;
+      }
+      final points = <Offset>[
+        toImage(room.x.toDouble(), room.y.toDouble(), _partitionHeight),
+        toImage(room.right.toDouble(), room.y.toDouble()),
+        toImage(room.x.toDouble(), room.bottom.toDouble()),
+        toImage(room.right.toDouble(), room.bottom.toDouble()),
+      ];
+      for (final point in points) {
+        final r = Rect.fromCenter(center: point, width: 0, height: 0);
+        bounds = bounds == null ? r : bounds.expandToInclude(r);
+      }
+    }
+    return bounds;
+  }
+
   /// Postes d'une salle : rangées de deux cases, réparties sur la largeur.
   static List<Seat> seatsIn(PlacedRoom room) {
     final type = room.type;

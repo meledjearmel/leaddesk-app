@@ -110,6 +110,53 @@ void main() {
     );
   }
 
+  testWidgets('capture un bureau visité et une fiche agent', skip: skip, (
+    tester,
+  ) async {
+    final flutterRoot =
+        Platform.environment['FLUTTER_ROOT'] ??
+        File(Platform.resolvedExecutable)
+            .parent
+            .parent
+            .parent
+            .parent
+            .parent
+            .parent
+            .path;
+    await _loadFont('Segoe UI', const <String>[
+      r'C:\Windows\Fonts\segoeui.ttf',
+      r'C:\Windows\Fonts\seguisb.ttf',
+      r'C:\Windows\Fonts\segoeuib.ttf',
+    ]);
+    await _loadFont('MaterialIcons', <String>[
+      '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+    ]);
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: key,
+        child: const LeadDeskApp(home: LiveOfficeScreen()),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byTooltip('Entrer dans le bureau Technique'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Forge').first);
+    await tester.pump(const Duration(milliseconds: 600));
+
+    await tester.runAsync(() async {
+      final boundary =
+          key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await boundary.toImage();
+      await _writePng(image, '$dir/bureau_visite.png');
+      image.dispose();
+    });
+  });
+
   for (final size in const <Size>[Size(1440, 900), Size(1920, 1080)]) {
     testWidgets('capture l\'écran en ${size.width.toInt()}', skip: skip, (
       tester,

@@ -9,6 +9,7 @@ import '../api/realtime.dart';
 import '../app/theme.dart';
 import '../decisions/decisions_controller.dart';
 import '../engine/run_controller.dart';
+import 'agent_sheet.dart';
 import 'live_office_controller.dart';
 import 'office_camera.dart';
 import 'office_source.dart';
@@ -17,6 +18,7 @@ import 'scene/office_scene.dart';
 import 'scene/pixel_people.dart';
 import 'scene/plan_scene.dart';
 import 'widgets/agent_panel.dart';
+import 'widgets/agent_sheet_panel.dart';
 import 'widgets/common.dart';
 import 'widgets/conversation_panel.dart';
 import 'widgets/decisions_panel.dart';
@@ -87,6 +89,9 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
     setState(() => _adminOpen = !_adminOpen);
     if (_adminOpen) {
       unawaited(widget.admin?.load());
+    } else {
+      // Les changements faits dans l'administration se voient au retour.
+      unawaited(_sheet?.refresh());
     }
   }
 
@@ -202,7 +207,7 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
     if (config == null) {
       return null;
     }
-    return ApiOfficeSource(_client = ApiClient(config));
+    return _defaultSourceCache = ApiOfficeSource(_client = ApiClient(config));
   }
 
   /// Change la scène de la caméra quand on passe du plateau à la salle, et
@@ -215,9 +220,14 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
       );
       return;
     }
+    _syncSheet();
     final mode = _controller.mode;
     final revision = _controller.revision;
+    final focus = _controller.focusedDepartment?.id;
     if (mode == _shownMode && revision == _shownRevision) {
+      if (focus != _shownFocus) {
+        _frameFocus();
+      }
       return;
     }
     if (revision != _shownRevision) {
@@ -237,6 +247,65 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
       // Le plateau s'ouvre à mi-distance : lisible, le reste se parcourt.
       initialZoom: plateau ? 1.6 : 1,
     );
+    _shownFocus = null;
+    if (plateau && focus != null) {
+      _frameFocus();
+    }
+  }
+
+  String? _shownFocus;
+
+  /// Cadre le bureau du département visité, ou revient à la vue d'ensemble.
+  void _frameFocus() {
+    final focus = _controller.focusedDepartment?.id;
+    _shownFocus = focus;
+    if (_controller.mode != OfficeViewMode.plateau) {
+      return;
+    }
+    final bounds = focus == null ? null : _geometry.departmentBounds(focus);
+    if (bounds == null) {
+      _camera.reset();
+    } else {
+      _camera.frame(bounds);
+    }
+  }
+
+  late final AgentSheetController? _sheet = () {
+    final api =
+        widget.admin?.api ??
+        switch (widget.source ?? _defaultSourceCache) {
+          final ApiOfficeSource source => source.client,
+          _ => null,
+        };
+    return api == null ? null : AgentSheetController(api);
+  }();
+
+  OfficeSource? _defaultSourceCache;
+
+  /// Charge la fiche de l'agent ouvert, si elle a changé.
+  void _syncSheet() {
+    final id = _controller.sheetAgentId;
+    final sheet = _sheet;
+    if (id != null && sheet != null && '${sheet.agentId}' != id) {
+      unawaited(sheet.open(id));
+    }
+  }
+
+  /// Ouvre l'agent dans l'administration.
+  void _editAgent(String id) {
+    final admin = widget.admin;
+    final agentId = int.tryParse(id);
+    if (admin == null || agentId == null) {
+      return;
+    }
+    setState(() => _adminOpen = true);
+    unawaited(
+      admin.load().then((_) {
+        admin
+          ..open(AdminSection.agents)
+          ..select(agentId);
+      }),
+    );
   }
 
   Offset? _feetOf(String agentId, double time) {
@@ -254,6 +323,7 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
       ..removeListener(_syncScene)
       ..dispose();
     _camera.dispose();
+    _sheet?.dispose();
     _roomFrames?.dispose();
     _plateauFrames?.dispose();
     _client?.close();
@@ -283,8 +353,16 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                 final editing =
                     _controller.editing &&
                     width >= LiveOfficeScreen.agentPanelBreakpoint;
+                final sheetAgent = _controller.agents
+                    .where((a) => a.id == _controller.sheetAgentId)
+                    .firstOrNull;
+                final showSheet =
+                    !editing &&
+                    sheetAgent != null &&
+                    width >= LiveOfficeScreen.agentPanelBreakpoint;
                 final showProposal =
                     !editing &&
+                    !showSheet &&
                     _controller.openProposal != null &&
                     width >= LiveOfficeScreen.agentPanelBreakpoint;
                 final engine = widget.engine;
@@ -304,6 +382,7 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                 final admin = widget.admin;
                 final showAdmin = admin != null && _adminOpen;
                 final showConversation =
+                    !showSheet &&
                     !showProposal &&
                     !showRun &&
                     !showDecisions &&
@@ -350,6 +429,16 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                       if (editing) ...<Widget>[
                         const SizedBox(width: 8),
                         EditorPanel(controller: _controller),
+                      ] else if (showSheet) ...<Widget>[
+                        const SizedBox(width: 8),
+                        AgentSheetPanel(
+                          office: _controller,
+                          agent: sheetAgent,
+                          sheet: _sheet,
+                          onEdit: widget.admin == null
+                              ? null
+                              : () => _editAgent(sheetAgent.id),
+                        ),
                       ] else if (showProposal) ...<Widget>[
                         const SizedBox(width: 8),
                         ProposalPanel(controller: _controller),
@@ -410,6 +499,15 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                     camera: _camera,
                     geometry: _geometry,
                     presentOf: (id) => _controller.agentsOf(id).length,
+                    onOpen: _controller.focusDepartment,
+                    focusedId: _controller.focusedDepartment?.id,
+                  ),
+                if (!_controller.editing &&
+                    _controller.mode == OfficeViewMode.plateau)
+                  Positioned(
+                    left: 12,
+                    top: 64,
+                    child: DepartmentNavigator(controller: _controller),
                   ),
                 if (!_controller.editing)
                   AgentTagLayer(

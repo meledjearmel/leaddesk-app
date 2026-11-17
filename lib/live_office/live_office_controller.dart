@@ -285,6 +285,14 @@ class LiveOfficeController extends ChangeNotifier {
     _fromServer = fromServer;
     _loadError = null;
     _revision++;
+    if (_focusedDepartmentId != null &&
+        !_departments.any((d) => d.id == _focusedDepartmentId)) {
+      _focusedDepartmentId = null;
+    }
+    if (_sheetAgentId != null &&
+        !_agents.any((agent) => agent.id == _sheetAgentId)) {
+      _sheetAgentId = null;
+    }
     if (_selectedAgentId != null &&
         !_agents.any((agent) => agent.id == _selectedAgentId)) {
       _selectedAgentId = _agents.isEmpty ? null : _agents.first.id;
@@ -315,6 +323,61 @@ class LiveOfficeController extends ChangeNotifier {
     _mode = _mode == OfficeViewMode.plateau
         ? OfficeViewMode.room
         : OfficeViewMode.plateau;
+    notifyListeners();
+  }
+
+  String? _focusedDepartmentId;
+
+  /// Département dont on visite le bureau ; `null` pour la vue d'ensemble
+  /// (D-028).
+  OfficeDepartment? get focusedDepartment {
+    for (final department in _departments) {
+      if (department.id == _focusedDepartmentId) {
+        return department;
+      }
+    }
+    return null;
+  }
+
+  /// Va au bureau d'un département, sur le plateau.
+  void focusDepartment(String? id) {
+    if (_editor != null) {
+      return;
+    }
+    _focusedDepartmentId = id;
+    _mode = OfficeViewMode.plateau;
+    notifyListeners();
+  }
+
+  /// Passe au bureau suivant (ou précédent), dans l'ordre de l'organisation.
+  void stepDepartment(int delta) {
+    if (_departments.isEmpty) {
+      return;
+    }
+    final index = _departments.indexWhere((d) => d.id == _focusedDepartmentId);
+    final next = index < 0
+        ? (delta > 0 ? 0 : _departments.length - 1)
+        : (index + delta) % _departments.length;
+    focusDepartment(_departments[next].id);
+  }
+
+  String? _sheetAgentId;
+
+  /// Agent dont la fiche est ouverte (D-029).
+  String? get sheetAgentId => _sheetAgentId;
+
+  /// Ouvre la fiche d'un agent (et le sélectionne).
+  void openAgentSheet(String id) {
+    _selectedAgentId = id;
+    _sheetAgentId = id;
+    notifyListeners();
+  }
+
+  void closeAgentSheet() {
+    if (_sheetAgentId == null) {
+      return;
+    }
+    _sheetAgentId = null;
     notifyListeners();
   }
 
@@ -366,7 +429,12 @@ class LiveOfficeController extends ChangeNotifier {
   Map<String, List<OfficeAgent>> get agentsByPosition {
     final needle = _query.trim().toLowerCase();
     final groups = <String, List<OfficeAgent>>{};
+    final focused = _focusedDepartmentId;
     for (final agent in agents) {
+      // Dans le bureau d'un département, seuls ses agents sont listés.
+      if (focused != null && agent.departmentId != focused) {
+        continue;
+      }
       final matches =
           needle.isEmpty ||
           agent.name.toLowerCase().contains(needle) ||

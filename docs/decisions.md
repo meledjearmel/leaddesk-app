@@ -225,9 +225,36 @@ Questions ouvertes pour Armel : qui peut proposer un aménagement (une IA dédi�
   - Autres types (Cloudflare, AnyRouter, Freebuff…) : import possible dès que l'adresse de l'API est renseignée, traitée comme compatible OpenAI.
 - **Abonnement grand public** : un abonnement Claude Pro ne donne pas accès à l'API pour une application tierce. Il faut une clé de la console du fournisseur.
 - **Garde-fou** : une valeur qui ressemble à une clé n'est jamais envoyée au serveur, même saisie dans un autre champ.
+### D-028 · Navigation de bureau en bureau
+
+- **Décision** : sur le plateau, l'étiquette d'un département est cliquable. Le clic cadre la caméra sur les salles de ce département (`PlanGeometry.departmentBounds`, `OfficeCamera.frame`). Un fil d'Ariane « Bureau › Technique 3/8 » permet de passer au bureau précédent ou suivant, dans l'ordre de l'organisation, et de revenir à la vue d'ensemble.
+- **Effets** : dans un bureau, le panneau des agents ne liste que les agents de ce département. Après un rechargement, le bureau visité reste cadré, sauf si le département a disparu.
+- **Limites** : les salles restent celles du plateau. L'intérieur détaillé d'une salle n'existe que pour la salle de référence (vue « Salle »). Un intérieur détaillé par département viendra avec les états réels et les animations.
+
+### D-029 · Fiche d'un agent
+
+- **Décision** : un clic sur un agent (étiquette sur la scène ou ligne du panneau) ouvre sa fiche à droite. Elle passe avant les autres panneaux, sauf l'aménagement en cours. La fiche lit sur le serveur l'identité, le poste et le chemin de l'unité, l'état, les modèles IA, les tâches confiées, l'exécution en cours et le coût réel cumulé, ainsi que le parcours des postes. Les données viennent de `agents/{id}`, `agents/{id}/assignments`, `tasks?agent_id=`, `task-runs`, `positions`, `units` et `ai-providers`.
+- **Raccourci** : « Modifier dans l'administration » ouvre l'agent dans le back-office ; la fiche se relit au retour.
+- **Démonstration** : les agents de démonstration ont une fiche réduite, avec un message qui invite à se connecter.
+
+### D-030 · Ambiance par IA, facultative et plafonnée (principe accepté)
+
+- **Décision** : écart accepté par le CEO le 17 novembre 2026 à la règle « ambiance sans appel IA » (`CONCEPTION_STUDIO_VIRTUEL.md`, RM-44, RM-45). Un « modèle d'ambiance » peut écrire les échanges hors travail des agents.
+- **Garde-fous** :
+  - désactivé par défaut ;
+  - budget d'ambiance séparé et plafonné ; une fois épuisé, retour aux dialogues préécrits ;
+  - petit modèle choisi dans le back-office ;
+  - scènes générées par lots puis rejouées ;
+  - aucune donnée de travail ni aucun fichier envoyé au modèle : seulement prénoms, rôles, humeur et faits publics du bureau ;
+  - jamais dans le chat de travail ;
+  - aucun effet sur la progression ni sur les décisions ;
+  - dépense affichée à part.
+- **Quand** : après les états réels et les animations libres du bureau.
 ## Propositions de mise à jour des documents de conception
 
 - `REGLES_METIER_LEADDESK.md` (RM-02) : ajouter qu'une entreprise vierge contient toujours les unités RH et Moyens généraux, chacune avec un poste de responsable sans agent (D-013).
 
 - `Synthese_decisions_fonctionnelles_V1.md` : y reporter les approches retenues (D-006), comme le demande le critère de fin de la phase 0.
 - `REGLES_METIER_LEADDESK.md` (RM-52), `Synthese_decisions_fonctionnelles_V1.md` (section 9), `CONTEXTE_LEADDESK_CLAUDE_CODE.md`, `PLAN_DE_REALISATION_LEADDESK.md` (« un seul thème, clair et pastel, jusqu'à la phase 11 », « thème sombre » en phase 11, « calques (thème clair) ») et `inspiration_design/README.md` : remplacer les deux thèmes par un thème unique, sombre et chaleureux, avec les images 04 à 09 comme référence (D-004, D-007).
+
+- `CONCEPTION_STUDIO_VIRTUEL.md` (section 3, ambiance) et `REGLES_METIER_LEADDESK.md` (RM-44, RM-45) : préciser que l'ambiance peut, si le CEO l'active, être écrite par un modèle IA plafonné et séparé du travail (D-030).

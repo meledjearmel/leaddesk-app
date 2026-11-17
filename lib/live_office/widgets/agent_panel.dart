@@ -81,7 +81,7 @@ class AgentPanel extends StatelessWidget {
                             selected:
                                 agent.id == controller.selectedAgentId ||
                                 agent.typing,
-                            onTap: () => controller.selectAgent(agent.id),
+                            onTap: () => controller.openAgentSheet(agent.id),
                           ),
                       ],
                     ],

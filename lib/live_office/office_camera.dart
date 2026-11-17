@@ -111,6 +111,24 @@ class OfficeCamera extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Cadre une zone de la scène (un département) : elle remplit la vue,
+  /// avec une marge, dans les limites du zoom.
+  void frame(Rect sceneRect, {double margin = 0.18}) {
+    if (_viewport.isEmpty || sceneRect.isEmpty) {
+      centerOn(sceneRect.center);
+      return;
+    }
+    final base = scale / _zoom;
+    final fit = min(
+      _viewport.width / sceneRect.width,
+      _viewport.height / sceneRect.height,
+    );
+    _zoom = (fit * (1 - margin) / base).clamp(minZoom, maxZoom);
+    _center = sceneRect.center;
+    _clamp();
+    notifyListeners();
+  }
+
   /// Revient au cadrage de départ.
   void reset() {
     _zoom = _initialZoom;

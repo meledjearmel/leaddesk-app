@@ -99,7 +99,7 @@ class AgentTagLayer extends StatelessWidget {
                           selected: agent.id == controller.selectedAgentId,
                           // Les bulles se resserrent quand la scène est dézoomée.
                           compact: scale < 1.6,
-                          onTap: () => controller.selectAgent(agent.id),
+                          onTap: () => controller.openAgentSheet(agent.id),
                         ),
                       ),
                     );
@@ -119,11 +119,19 @@ class DepartmentTagLayer extends StatelessWidget {
     required this.camera,
     required this.geometry,
     required this.presentOf,
+    this.onOpen,
+    this.focusedId,
     super.key,
   });
 
   final OfficeCamera camera;
   final PlanGeometry geometry;
+
+  /// Clic sur l'étiquette d'un département : on entre dans son bureau.
+  final void Function(String departmentId)? onOpen;
+
+  /// Département visité : son étiquette est mise en avant.
+  final String? focusedId;
 
   /// Agents présents d'un département.
   final int Function(String departmentId) presentOf;
@@ -147,13 +155,21 @@ class DepartmentTagLayer extends StatelessWidget {
                 () {
                   final at = camera.toScreen(tag.anchor);
                   final department = tag.department;
+                  final open = onOpen;
                   return Positioned(
                     left: at.dx,
                     top: at.dy,
                     child: FractionalTranslation(
                       translation: const Offset(0, -1),
-                      child: IgnorePointer(
-                        child: _DepartmentTag(
+                      child: LdPressable(
+                        tooltip: department == null || open == null
+                            ? null
+                            : 'Entrer dans le bureau ${department.name}',
+                        onTap: department == null || open == null
+                            ? null
+                            : () => open(department.id),
+                        builder: (context, hovered) => _DepartmentTag(
+                          highlighted: hovered || department?.id == focusedId,
                           title: department?.name ?? tag.room.label,
                           detail: department == null || far
                               ? null
@@ -178,11 +194,17 @@ class DepartmentTagLayer extends StatelessWidget {
 }
 
 class _DepartmentTag extends StatelessWidget {
-  const _DepartmentTag({required this.title, required this.color, this.detail});
+  const _DepartmentTag({
+    required this.title,
+    required this.color,
+    this.detail,
+    this.highlighted = false,
+  });
 
   final String title;
   final String? detail;
   final Color color;
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -190,9 +212,12 @@ class _DepartmentTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 4, 10, 5),
       decoration: BoxDecoration(
-        color: const Color(0xE6141312),
+        color: highlighted ? const Color(0xF2232120) : const Color(0xE6141312),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.7)),
+        border: Border.all(
+          color: color.withValues(alpha: highlighted ? 1 : 0.7),
+          width: highlighted ? 1.5 : 1,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -624,6 +649,97 @@ class _BarButton extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Fil d'Ariane du bureau (D-028) : « Bureau › Technique », bureau
+/// précédent et suivant dans l'ordre de l'organisation, retour à la vue
+/// d'ensemble.
+class DepartmentNavigator extends StatelessWidget {
+  const DepartmentNavigator({required this.controller, super.key});
+
+  final LiveOfficeController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = controller;
+    final focused = c.focusedDepartment;
+    final departments = c.departments;
+    final index = focused == null ? -1 : departments.indexOf(focused);
+    return GlassSurface(
+      radius: 12,
+      padding: const EdgeInsets.fromLTRB(4, 4, 6, 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          LdIconButton(
+            icon: Icons.chevron_left,
+            tooltip: 'Bureau précédent',
+            size: 30,
+            iconSize: 18,
+            onTap: departments.isEmpty ? null : () => c.stepDepartment(-1),
+          ),
+          LdPressable(
+            tooltip: focused == null ? null : 'Revenir à la vue d\'ensemble',
+            onTap: focused == null ? null : () => c.focusDepartment(null),
+            builder: (context, hovered) => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Text(
+                'Bureau',
+                style: TextStyle(
+                  color: focused == null || hovered
+                      ? LdColors.text
+                      : LdColors.textMuted,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          if (focused != null) ...<Widget>[
+            const Icon(
+              Icons.chevron_right,
+              size: 14,
+              color: LdColors.textFaint,
+            ),
+            const SizedBox(width: 6),
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: Color(focused.color),
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              focused.name,
+              style: const TextStyle(
+                color: LdColors.text,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              '${index + 1}/${departments.length}',
+              style: const TextStyle(color: LdColors.textFaint, fontSize: 11.5),
+            ),
+          ] else
+            const Text(
+              'vue d\'ensemble',
+              style: TextStyle(color: LdColors.textFaint, fontSize: 12),
+            ),
+          LdIconButton(
+            icon: Icons.chevron_right,
+            tooltip: 'Bureau suivant',
+            size: 30,
+            iconSize: 18,
+            onTap: departments.isEmpty ? null : () => c.stepDepartment(1),
+          ),
+        ],
       ),
     );
   }

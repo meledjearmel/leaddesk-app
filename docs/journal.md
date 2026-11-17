@@ -161,3 +161,14 @@ Décisions : D-012, D-013. Ordre : 0 → 1 → 2 → 5 → 3 → 4 → 6. Chaque
 **Fait** : une clé par fournisseur, gardée sur l'ordinateur, et un import des modèles du compte pour Anthropic, Google AI et les fournisseurs compatibles OpenAI ; les autres types sont importables avec leur adresse d'API (D-027).
 
 **Testé** : tests du catalogue (pages, filtres, liste nue, clé refusée sans fuite de la clé) et de l'import ; capture `admin_modeles`. Les adresses réelles des fournisseurs restent à confirmer avec de vraies clés.
+
+## Navigation entre les bureaux et fiche agent (17 novembre 2026)
+
+**Fait** :
+- Clic sur un département pour entrer dans son bureau, fil d'Ariane avec bureau précédent et suivant, liste d'agents filtrée (D-028).
+- Fiche agent réelle : poste, unité, état, modèles, tâches, exécution en cours, coût, parcours, et raccourci vers l'administration (D-029).
+- Principe de l'ambiance par IA acté (D-030), à réaliser plus tard.
+
+**Testé** : tests de navigation, de cadrage et de fiche ; capture `bureau_visite`.
+
+**Reste à faire (phase 5)** : états réels des agents sur la scène, animations libres, horloge de bureau, panneau d'activité réel, « Donner une mission », intérieur détaillé par département ; puis Dashboard.
