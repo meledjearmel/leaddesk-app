@@ -7,6 +7,7 @@
 // Usage (PowerShell) :
 //   $env:LD_CAPTURE_DIR = 'C:\chemin\vers\un\dossier'
 //   flutter test test/tools/capture_test.dart
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -14,8 +15,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:leaddesk_app/admin/admin_controller.dart';
 import 'package:leaddesk_app/admin/admin_screen.dart';
+import 'package:leaddesk_app/admin/model_catalog.dart';
 import 'package:leaddesk_app/api/api_client.dart';
 import 'package:leaddesk_app/app/theme.dart';
 import 'package:leaddesk_app/auth/auth_screens.dart';
@@ -510,11 +514,36 @@ void main() {
       await _loadFont('MaterialIcons', <String>[
         '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
       ]);
-      tester.view.physicalSize = const Size(1280, 760);
+      tester.view.physicalSize = const Size(1280, 1080);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
 
-      final admin = AdminController(FakeAdminServer().api());
+      final vault = MemoryVault();
+      await ProviderKeys(vault).setAnthropic('sk-ant-capture-a1b2');
+      final admin = AdminController(
+        FakeAdminServer().api(),
+        keys: ProviderKeys(vault),
+        catalog: ModelCatalog(
+          MockClient(
+            (_) async => http.Response.bytes(
+              utf8.encode(
+                jsonEncode(<String, Object?>{
+                  'data': <Object?>[
+                    for (final (id, label) in const <(String, String)>[
+                      ('claude-opus-5-5', 'Claude Opus 5.5'),
+                      ('claude-sonnet-5-5', 'Claude Sonnet 5.5'),
+                      ('claude-haiku-5-5', 'Claude Haiku 5.5'),
+                    ])
+                      <String, Object?>{'id': id, 'display_name': label},
+                  ],
+                  'has_more': false,
+                }),
+              ),
+              200,
+            ),
+          ),
+        ),
+      );
       addTearDown(admin.dispose);
       final key = GlobalKey();
       await tester.pumpWidget(
@@ -537,6 +566,11 @@ void main() {
       admin
         ..open(section)
         ..select(selected);
+      if (section == AdminSection.providers) {
+        await tester.runAsync(
+          () => admin.fetchRemoteModels(admin.provider(selected)!),
+        );
+      }
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(milliseconds: 300));
 

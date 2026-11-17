@@ -155,3 +155,9 @@ Décisions : D-012, D-013. Ordre : 0 → 1 → 2 → 5 → 3 → 4 → 6. Chaque
 **Reste à faire** : essai réel du moteur avec une clé Anthropic ; Dashboard ; activités et tâches dans l'application ; dans le back-office, les intégrations MCP, les règles, les seuils de coût et les notifications.
 
 **Correctif (17 novembre 2026)** : une clé d'API collée dans « Adresse de l'API » partait vers le serveur, qui la refusait avec le message brut « validation.url ». L'application bloque désormais toute valeur qui ressemble à une clé et toute adresse qui ne commence pas par http(s), avant l'envoi. Elle traduit aussi les messages de validation bruts. Reste à faire côté API : traductions françaises de la validation (`lang/fr`).
+
+## Import des modèles (17 novembre 2026)
+
+**Fait** : une clé par fournisseur, gardée sur l'ordinateur, et un import des modèles du compte pour Anthropic, Google AI et les fournisseurs compatibles OpenAI ; les autres types sont importables avec leur adresse d'API (D-027).
+
+**Testé** : tests du catalogue (pages, filtres, liste nue, clé refusée sans fuite de la clé) et de l'import ; capture `admin_modeles`. Les adresses réelles des fournisseurs restent à confirmer avec de vraies clés.

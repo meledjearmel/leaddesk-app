@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../app/theme.dart';
 import '../live_office/widgets/common.dart';
 import 'admin_controller.dart';
 import 'admin_models.dart';
+import 'model_catalog.dart';
 
 /// Espace « Administration » (D-026) : le back-office prend la place du
 /// bureau. Rubriques en haut, liste à gauche, éditeur à droite.
@@ -1203,6 +1206,12 @@ class _ProviderEditorState extends State<_ProviderEditor> {
           ? const <Widget>[]
           : <Widget>[
               const SizedBox(height: 26),
+              if (c.keys != null)
+                _ProviderImport(
+                  key: ValueKey<String>('import-${provider.id}'),
+                  controller: c,
+                  provider: provider,
+                ),
               const _Label('Modèles'),
               for (final m in provider.models)
                 _ProviderModelRow(
@@ -1266,10 +1275,274 @@ class _ProviderEditorState extends State<_ProviderEditor> {
           label: 'Adresse de l\'API (facultatif)',
           hint: 'https://… — seulement si elle diffère de celle du fournisseur',
         ),
-        const _Hint(
-          'La clé d\'API ne passe jamais par le serveur : elle se saisit '
-          'dans « Exécution › Réglages » et reste sur cet ordinateur.',
+        _Hint(
+          provider == null
+              ? 'Pas de clé ici : une fois le fournisseur enregistré, sa clé '
+                    'se saisit plus bas et reste sur cet ordinateur.'
+              : 'La clé se saisit plus bas et reste sur cet ordinateur.',
         ),
+      ],
+    );
+  }
+}
+
+/// Clé du fournisseur (gardée sur cet ordinateur) et import des modèles
+/// du compte (D-027).
+class _ProviderImport extends StatefulWidget {
+  const _ProviderImport({
+    required this.controller,
+    required this.provider,
+    super.key,
+  });
+
+  final AdminController controller;
+  final AiProviderEntry provider;
+
+  @override
+  State<_ProviderImport> createState() => _ProviderImportState();
+}
+
+class _ProviderImportState extends State<_ProviderImport> {
+  final TextEditingController _key = TextEditingController();
+  final Set<String> _chosen = <String>{};
+
+  @override
+  void dispose() {
+    _key.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.controller;
+    final p = widget.provider;
+    final mask = c.keyMasks[p.driver];
+    final supported = ModelCatalog.supports(p.driver, p.baseUrl);
+    final remote = c.remoteFor == p.id ? c.remoteModels : null;
+    final existing = <String>{for (final m in p.models) m.identifier};
+    final addable = <RemoteModel>[
+      for (final m in remote ?? const <RemoteModel>[])
+        if (!existing.contains(m.identifier)) m,
+    ];
+    return Container(
+      margin: const EdgeInsets.only(bottom: 22),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF191919),
+        borderRadius: BorderRadius.circular(LdRadius.card),
+        border: Border.all(color: LdColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const _Label('Clé et import des modèles'),
+          _Hint(
+            mask == null
+                ? 'Aucune clé sur cet ordinateur. Elle sert à lire les '
+                      'modèles de votre compte et n\'est jamais envoyée au '
+                      'serveur LeadDesk.'
+                : 'Clé enregistrée sur cet ordinateur ($mask). Elle n\'est '
+                      'jamais envoyée au serveur LeadDesk.',
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Expanded(
+                child: TextField(
+                  controller: _key,
+                  obscureText: true,
+                  enableSuggestions: false,
+                  autocorrect: false,
+                  style: const TextStyle(color: LdColors.text, fontSize: 13.5),
+                  decoration: _decoration(
+                    mask == null ? 'Clé d\'API' : 'Remplacer la clé',
+                    null,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              AdminButton(
+                label: 'Enregistrer la clé',
+                onTap: () async {
+                  if (_key.text.trim().isEmpty) {
+                    return;
+                  }
+                  await c.setProviderKey(p.driver, _key.text);
+                  _key.clear();
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: <Widget>[
+              AdminButton(
+                label: c.fetchingRemote
+                    ? 'Lecture du compte…'
+                    : 'Importer les modèles',
+                icon: Icons.download_outlined,
+                primary: true,
+                onTap: !supported || mask == null || c.fetchingRemote
+                    ? null
+                    : () {
+                        _chosen.clear();
+                        unawaited(c.fetchRemoteModels(p));
+                      },
+              ),
+              if (mask != null)
+                AdminButton(
+                  label: 'Effacer la clé',
+                  danger: true,
+                  onTap: () async {
+                    if (await confirmDanger(
+                      context,
+                      title: 'Effacer la clé de ${p.name} ?',
+                      message:
+                          'Elle est retirée de cet ordinateur. Les agents qui '
+                          'utilisent ce fournisseur ne pourront plus travailler '
+                          'ici tant qu\'une clé n\'est pas saisie.',
+                      action: 'Effacer',
+                    )) {
+                      await c.setProviderKey(p.driver, '');
+                    }
+                  },
+                ),
+            ],
+          ),
+          if (!supported)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: _Hint(
+                'Indiquez l\'adresse de l\'API de ce fournisseur pour importer '
+                'ses modèles.',
+              ),
+            ),
+          if (remote != null && remote.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 14),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    '${remote.length} modèles sur votre compte · '
+                    '${addable.length} à ajouter',
+                    style: const TextStyle(
+                      color: LdColors.textMuted,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ),
+                AdminButton(
+                  label: _chosen.length == addable.length && addable.isNotEmpty
+                      ? 'Tout décocher'
+                      : 'Tout cocher',
+                  small: true,
+                  onTap: addable.isEmpty
+                      ? null
+                      : () => setState(() {
+                          if (_chosen.length == addable.length) {
+                            _chosen.clear();
+                          } else {
+                            _chosen.addAll(addable.map((m) => m.identifier));
+                          }
+                        }),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 280),
+              child: ListView(
+                shrinkWrap: true,
+                children: <Widget>[
+                  for (final m in remote)
+                    _RemoteRow(
+                      model: m,
+                      added: existing.contains(m.identifier),
+                      chosen: _chosen.contains(m.identifier),
+                      onToggle: () => setState(
+                        () => _chosen.contains(m.identifier)
+                            ? _chosen.remove(m.identifier)
+                            : _chosen.add(m.identifier),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              children: <Widget>[
+                AdminButton(
+                  label: 'Ajouter la sélection (${_chosen.length})',
+                  primary: true,
+                  onTap: _chosen.isEmpty || c.busy
+                      ? null
+                      : () => c.importModels(p.id, <RemoteModel>[
+                          for (final m in remote)
+                            if (_chosen.contains(m.identifier)) m,
+                        ]),
+                ),
+                AdminButton(label: 'Annuler', onTap: c.closeRemoteModels),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RemoteRow extends StatelessWidget {
+  const _RemoteRow({
+    required this.model,
+    required this.added,
+    required this.chosen,
+    required this.onToggle,
+  });
+
+  final RemoteModel model;
+  final bool added;
+  final bool chosen;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = model.label;
+    return Row(
+      children: <Widget>[
+        Checkbox(
+          value: added || chosen,
+          onChanged: added ? null : (_) => onToggle(),
+          semanticLabel: 'Importer ${model.identifier}',
+        ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                label == null || label.isEmpty ? model.identifier : label,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: added ? LdColors.textMuted : LdColors.text,
+                  fontSize: 13,
+                ),
+              ),
+              if (label != null && label.isNotEmpty)
+                Text(
+                  model.identifier,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: LdColors.textFaint,
+                    fontSize: 11.5,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (added) const _MutedChip('Déjà ajouté'),
       ],
     );
   }

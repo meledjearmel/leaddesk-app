@@ -214,6 +214,17 @@ Questions ouvertes pour Armel : qui peut proposer un aménagement (une IA dédi�
 - **Garde-fous** : la mise à la corbeille et le retrait d'un fournisseur ou d'un modèle demandent confirmation. Unités, postes et agents ont une corbeille avec « Restaurer ». Une unité système ne propose pas la corbeille. Les listes de rattachement excluent ce qui créerait une boucle, et le serveur garde le dernier mot : ses messages de validation s'affichent tels quels.
 - **Clé d'API** : jamais saisie ici. L'écran renvoie vers « Exécution › Réglages », où elle reste sur l'ordinateur (D-022).
 - **Limites** : les intégrations MCP, les règles d'autonomie, les seuils de coût et les notifications restent hors de cet écran pour l'instant.
+### D-027 · Import des modèles depuis le compte du fournisseur
+
+- **Décision** : dans « Modèles IA », la fiche d'un fournisseur reçoit sa clé et propose « Importer les modèles ». L'application lit la liste des modèles du compte chez le fournisseur ; le CEO coche ceux à ajouter, et les modèles déjà présents sont signalés.
+- **Clé** : une par type de fournisseur, dans le stockage sécurisé de Windows (`ProviderKeys.forDriver`). C'est le même emplacement que la clé Anthropic du moteur (D-022). L'appel au fournisseur part de l'ordinateur ; le serveur LeadDesk ne reçoit que l'identifiant et le nom des modèles choisis.
+- **Fournisseurs** :
+  - Anthropic : `GET /v1/models`, pages suivies.
+  - Google AI : `GET /v1beta/models`, seuls les modèles qui génèrent du texte.
+  - Compatibles OpenAI (`GET …/models`, clé en `Bearer`) : OpenAI, OpenRouter, Mistral, Groq, NVIDIA, DeepSeek, Together, Fireworks, DeepInfra, Cerebras, Hugging Face.
+  - Autres types (Cloudflare, AnyRouter, Freebuff…) : import possible dès que l'adresse de l'API est renseignée, traitée comme compatible OpenAI.
+- **Abonnement grand public** : un abonnement Claude Pro ne donne pas accès à l'API pour une application tierce. Il faut une clé de la console du fournisseur.
+- **Garde-fou** : une valeur qui ressemble à une clé n'est jamais envoyée au serveur, même saisie dans un autre champ.
 ## Propositions de mise à jour des documents de conception
 
 - `REGLES_METIER_LEADDESK.md` (RM-02) : ajouter qu'une entreprise vierge contient toujours les unités RH et Moyens généraux, chacune avec un poste de responsable sans agent (D-013).

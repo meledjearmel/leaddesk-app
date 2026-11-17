@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../api/api_client.dart';
+import '../engine/host.dart';
 import 'admin_models.dart';
+import 'model_catalog.dart';
 
 /// Rubriques du back-office.
 enum AdminSection {
@@ -37,9 +39,124 @@ enum AdminSection {
 /// de son organisation, de ses postes, de ses agents et de ses modèles IA.
 /// Rien n'est codé en dur (RM-03) : tout vient du serveur.
 class AdminController extends ChangeNotifier {
-  AdminController(this.api);
+  AdminController(this.api, {this.keys, ModelCatalog? catalog})
+    : catalog = catalog ?? ModelCatalog(api.httpClient);
 
   final ApiClient api;
+
+  /// Clés des fournisseurs, gardées sur cet ordinateur ; absentes en
+  /// démonstration.
+  final ProviderKeys? keys;
+
+  /// Lecture des modèles chez le fournisseur (D-027).
+  final ModelCatalog catalog;
+
+  /// Fin de la clé enregistrée, par type de fournisseur.
+  Map<String, String> keyMasks = <String, String>{};
+
+  /// Modèles lus chez le fournisseur ouvert, en attente de sélection.
+  List<RemoteModel>? remoteModels;
+  int? remoteFor;
+  bool fetchingRemote = false;
+
+  Future<void> _loadKeyMasks() async {
+    final k = keys;
+    if (k == null) {
+      return;
+    }
+    final masks = <String, String>{};
+    for (final driver in <String>{
+      ...drivers.map((d) => d.$1),
+      ...providers.map((p) => p.driver),
+    }) {
+      if (await k.forDriver(driver) case final key?) {
+        masks[driver] = ProviderKeys.mask(key);
+      }
+    }
+    keyMasks = masks;
+  }
+
+  /// Enregistre (ou efface, si vide) la clé d'un type de fournisseur, sur
+  /// cet ordinateur seulement.
+  Future<void> setProviderKey(String driver, String key) async {
+    final k = keys;
+    if (k == null) {
+      return;
+    }
+    await k.setForDriver(driver, key);
+    await _loadKeyMasks();
+    error = null;
+    notice = key.trim().isEmpty
+        ? 'Clé effacée de cet ordinateur.'
+        : 'Clé enregistrée sur cet ordinateur.';
+    _notify();
+  }
+
+  /// Lit les modèles du compte chez le fournisseur.
+  Future<void> fetchRemoteModels(AiProviderEntry provider) async {
+    final key = await keys?.forDriver(provider.driver);
+    if (key == null) {
+      error = 'Enregistrez d\'abord la clé de ${provider.name}.';
+      _notify();
+      return;
+    }
+    fetchingRemote = true;
+    error = null;
+    notice = null;
+    remoteModels = null;
+    remoteFor = provider.id;
+    _notify();
+    try {
+      remoteModels = await catalog.fetch(
+        driver: provider.driver,
+        providerName: provider.name,
+        key: key,
+        baseUrl: provider.baseUrl,
+      );
+      if (remoteModels!.isEmpty) {
+        notice = '${provider.name} ne propose aucun modèle à ce compte.';
+      }
+    } on CatalogException catch (e) {
+      error = e.message;
+    }
+    fetchingRemote = false;
+    _notify();
+  }
+
+  void closeRemoteModels() {
+    remoteModels = null;
+    remoteFor = null;
+    _notify();
+  }
+
+  /// Ajoute les modèles choisis au fournisseur ; ceux déjà présents sont
+  /// ignorés.
+  Future<bool> importModels(int providerId, List<RemoteModel> chosen) {
+    final existing = <String>{
+      ...?provider(providerId)?.models.map((m) => m.identifier),
+    };
+    final fresh = <RemoteModel>[
+      for (final m in chosen)
+        if (!existing.contains(m.identifier)) m,
+    ];
+    return _run(
+      () async {
+        for (final m in fresh) {
+          await api.post('ai-providers/$providerId/models', <String, Object?>{
+            'identifier': m.identifier,
+            'label': _blank(m.label),
+          });
+        }
+        remoteModels = null;
+        remoteFor = null;
+      },
+      notice: switch (fresh.length) {
+        0 => 'Ces modèles étaient déjà ajoutés.',
+        1 => '1 modèle importé.',
+        final n => '$n modèles importés.',
+      },
+    );
+  }
 
   AdminSection section = AdminSection.units;
 
@@ -112,6 +229,7 @@ class AdminController extends ChangeNotifier {
           for (final t in tags)
             if (t is String) t,
       ];
+      await _loadKeyMasks();
     } on ApiException catch (e) {
       error = e.message;
     } on Object {
@@ -141,6 +259,10 @@ class AdminController extends ChangeNotifier {
   }
 
   void select(int id) {
+    if (remoteFor != id) {
+      remoteModels = null;
+      remoteFor = null;
+    }
     selectedId = id;
     creating = false;
     error = null;

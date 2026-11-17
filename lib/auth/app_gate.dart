@@ -119,7 +119,7 @@ class _AppGateState extends State<AppGate> {
           host: HostDevice(api: _client!, vault: vault),
         );
         _decisions = DecisionsController(_client!);
-        _admin = AdminController(_client!);
+        _admin = AdminController(_client!, keys: ProviderKeys(vault));
         _stage = _Stage.office;
       }
     });

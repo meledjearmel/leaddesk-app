@@ -59,20 +59,25 @@ class ProviderKeys {
 
   final LocalVault vault;
 
-  static const String _anthropic = 'leaddesk.provider.anthropic';
+  /// Une clé par type de fournisseur (`anthropic`, `openai`…).
+  static String _slot(String driver) => 'leaddesk.provider.$driver';
 
-  Future<String?> anthropic() async {
-    final key = (await vault.read(_anthropic))?.trim();
+  Future<String?> forDriver(String driver) async {
+    final key = (await vault.read(_slot(driver)))?.trim();
     return key == null || key.isEmpty ? null : key;
   }
 
   /// Enregistre la clé ; une clé vide l'efface.
-  Future<void> setAnthropic(String key) {
+  Future<void> setForDriver(String driver, String key) {
     final cleaned = key.trim();
     return cleaned.isEmpty
-        ? vault.delete(_anthropic)
-        : vault.write(_anthropic, cleaned);
+        ? vault.delete(_slot(driver))
+        : vault.write(_slot(driver), cleaned);
   }
+
+  Future<String?> anthropic() => forDriver('anthropic');
+
+  Future<void> setAnthropic(String key) => setForDriver('anthropic', key);
 
   /// Fin de la clé, pour l'afficher sans la révéler (`…a1b2`).
   static String mask(String key) =>
