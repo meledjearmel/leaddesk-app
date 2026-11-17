@@ -33,18 +33,27 @@ Aujourd'hui, la vue « Salle » (bouton « Vue : Salle » de la barre du bas) mo
    - attend une décision ou en limite de coût : debout près de son bureau ;
    - en pause ou disponible : au café ou en train de circuler, sur des chemins simples.
    - Personnages en pixel art d'après `lib/live_office/scene/pixel_people.dart`.
-5. **Un pixel art net** :
+5. **Le sens du détail quand on zoome (niveaux de détail)** : aujourd'hui, la scène est rendue une seule fois à petite résolution. Zoomer agrandit donc les pixels en gros carrés : le rendu est « pixelisé » et pauvre. Je ne veux pas limiter le zoom ; je veux plus de détail à mesure qu'on zoome, comme sur les images 04 et 05, où les pixels sont petits et nombreux.
+   - **Niveaux de rendu ×1, ×2, ×3** : ×1 pour la vue d'ensemble, ×2 et ×3 quand on zoome. Chaque niveau redessine la scène à une résolution plus fine. Un pixel du dessin ne doit jamais faire plus de 2 pixels physiques à l'écran ; au-delà du niveau le plus fin, le zoom plafonne.
+   - **Plus de détails, pas seulement plus de pixels** :
+     - ×2 : touches de clavier, lignes de code à l'écran, grain du bois, dos des livres, feuilles des plantes, post-it, visages avec yeux et cheveux ;
+     - ×3 : reflets du verre, câbles, objets sur les bureaux (tasses, carnets), expressions et gestes des agents.
+     
+     Chaque meuble (`furniture.dart`) et chaque personnage (`pixel_people.dart`) se dessine selon le niveau demandé, en restant du pixel art : pas de lissage, pas de dessin vectoriel.
+   - **Seulement ce qu'on regarde** : les niveaux fins sont rendus pour le département visité ou la zone visible, en arrière-plan, puis gardés en cache et libérés en partant. Pendant la préparation, on affiche le niveau précédent, puis on bascule sans à-coup. Le zoom reste fluide et la mémoire raisonnable.
+   - `OfficeCamera` choisit le niveau d'après l'échelle et garde l'arrondi à un nombre entier de pixels physiques (D-031). Le plafond actuel (`maxScale = 3`, D-032) devient « 2 pixels physiques au plus par pixel d'art, au niveau le plus fin ».
+6. **Un pixel art net** :
    - même résolution d'art que le plateau ;
    - affichage par `OfficeFrames` et `OfficeCamera`, qui arrondissent déjà l'agrandissement à un nombre entier de pixels physiques (D-031) ;
    - pas plus de 3 points par pixel d'art (D-032) ;
    - à l'ouverture, toute la salle doit être visible, cadrée comme sur les images.
-6. **Les étiquettes suivent D-032** : une pastille au-dessus de chaque agent, et une étiquette seulement pour ce qui compte (attention requise, sélection, survol, conversation, et les noms des agents de la salle de près). Elles ne se chevauchent pas et ne passent jamais sous les barres (`DeclutteredTags`, `mapSafeArea`).
-7. **Navigation** :
+7. **Les étiquettes suivent D-032** : une pastille au-dessus de chaque agent, et une étiquette seulement pour ce qui compte (attention requise, sélection, survol, conversation, et les noms des agents de la salle de près). Elles ne se chevauchent pas et ne passent jamais sous les barres (`DeclutteredTags`, `mapSafeArea`).
+8. **Navigation** :
    - les flèches du fil d'Ariane passent au département suivant ou précédent en vue « Salle » aussi ;
    - sans département visité, « Vue : Salle » ouvre le premier département ;
    - « Vue : Plateau » ramène au plateau sur le même département ;
    - un clic sur un agent ouvre sa fiche (D-029).
-8. **Performance** :
+9. **Performance** :
    - les images sont rendues une fois par département et par jeu de données, comme `OfficeFrames.plateau`, et libérées en quittant le département ;
    - la salle de référence actuelle peut rester pour la démonstration si elle sert encore, sinon remplace-la.
 
@@ -65,13 +74,17 @@ Aujourd'hui, la vue « Salle » (bouton « Vue : Salle » de la barre du bas) mo
 2. Avance par étapes, chacune testée et vérifiée sur capture (une capture par étape, par exemple `salle_technique.png`, `salle_produit.png`) :
    1. salles assemblées ;
    2. mobilier dense ;
-   3. agents à leur poste selon leur état ;
-   4. déplacements simples ;
-   5. navigation.
+   3. niveaux de détail ×1/×2/×3 ;
+   4. agents à leur poste selon leur état ;
+   5. déplacements simples ;
+   6. navigation.
 3. Ajoute des tests :
    - génération déterministe ;
    - un poste par poste du département ;
    - un poste vacant reste vide ;
    - les agents sont à leur place ;
-   - la navigation fonctionne en vue « Salle ».
+   - la navigation fonctionne en vue « Salle » ;
+   - le niveau de détail suit le zoom, sans jamais dépasser 2 pixels physiques par pixel d'art.
+
+   Ajoute aussi une capture par niveau de détail du même bureau.
 4. Commite et pousse sur `main` quand tout est vert, puis fais-moi un bilan court avec les captures.
