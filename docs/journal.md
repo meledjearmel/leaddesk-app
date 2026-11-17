@@ -153,3 +153,5 @@ Décisions : D-012, D-013. Ordre : 0 → 1 → 2 → 5 → 3 → 4 → 6. Chaque
 **Testé** : 159 tests verts ; captures `admin_unites`, `admin_agent`, `admin_modeles`. Défaut corrigé à la capture : les listes déroulantes perdaient la police du thème.
 
 **Reste à faire** : essai réel du moteur avec une clé Anthropic ; Dashboard ; activités et tâches dans l'application ; dans le back-office, les intégrations MCP, les règles, les seuils de coût et les notifications.
+
+**Correctif (17 novembre 2026)** : une clé d'API collée dans « Adresse de l'API » partait vers le serveur, qui la refusait avec le message brut « validation.url ». L'application bloque désormais toute valeur qui ressemble à une clé et toute adresse qui ne commence pas par http(s), avant l'envoi. Elle traduit aussi les messages de validation bruts. Reste à faire côté API : traductions françaises de la validation (`lang/fr`).

@@ -1264,7 +1264,7 @@ class _ProviderEditorState extends State<_ProviderEditor> {
         AdminField(
           controller: _baseUrl,
           label: 'Adresse de l\'API (facultatif)',
-          hint: 'Si elle diffère de celle du fournisseur',
+          hint: 'https://… — seulement si elle diffère de celle du fournisseur',
         ),
         const _Hint(
           'La clé d\'API ne passe jamais par le serveur : elle se saisit '

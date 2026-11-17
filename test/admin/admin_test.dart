@@ -115,6 +115,39 @@ void main() {
     admin.dispose();
   });
 
+  test(
+    'une clé collée à la place de l\'adresse n\'est jamais envoyée',
+    () async {
+      final server = FakeAdminServer();
+      final admin = AdminController(server.api());
+      await admin.load();
+
+      final ok = await admin.saveProvider(
+        name: 'Claude',
+        driver: 'anthropic',
+        baseUrl: 'sk-ant-usr-1YA2l****Qv3qzQ8mwEpAAA',
+      );
+
+      expect(ok, isFalse);
+      expect(server.writes, isEmpty);
+      expect(admin.error, contains('clé d\'API'));
+      expect(
+        await admin.saveProvider(
+          name: 'X',
+          driver: 'openai',
+          baseUrl: 'ftp://a',
+        ),
+        isFalse,
+      );
+      expect(server.writes, isEmpty);
+      expect(
+        AdminController.looksLikeSecret('https://api.example.com'),
+        isFalse,
+      );
+      admin.dispose();
+    },
+  );
+
   testWidgets('la corbeille demande confirmation et se restaure', (
     tester,
   ) async {

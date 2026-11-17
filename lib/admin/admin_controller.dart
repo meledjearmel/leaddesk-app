@@ -353,6 +353,44 @@ class AdminController extends ChangeNotifier {
     required String name,
     required String driver,
     String? baseUrl,
+  }) {
+    // Une clé collée par erreur ne doit jamais partir vers le serveur.
+    final url = baseUrl?.trim() ?? '';
+    if (looksLikeSecret(name) || looksLikeSecret(url)) {
+      error =
+          'Ceci ressemble à une clé d\'API : elle n\'a pas été envoyée. '
+          'Une clé se saisit dans « Exécution › Réglages » et reste sur cet '
+          'ordinateur.';
+      notice = null;
+      _notify();
+      return Future<bool>.value(false);
+    }
+    if (url.isNotEmpty &&
+        !(Uri.tryParse(url)?.isScheme('https') ?? false) &&
+        !(Uri.tryParse(url)?.isScheme('http') ?? false)) {
+      error = 'L\'adresse de l\'API doit commencer par https://.';
+      notice = null;
+      _notify();
+      return Future<bool>.value(false);
+    }
+    return _saveProvider(id: id, name: name, driver: driver, baseUrl: url);
+  }
+
+  /// Vrai pour une valeur qui a l'allure d'une clé d'API.
+  static bool looksLikeSecret(String? value) {
+    final v = value?.trim() ?? '';
+    return RegExp(
+          r'^(sk|pk|rk|xai|gsk|AIza)[-_]',
+          caseSensitive: false,
+        ).hasMatch(v) ||
+        RegExp(r'^[A-Za-z0-9_\-*]{32,}$').hasMatch(v);
+  }
+
+  Future<bool> _saveProvider({
+    int? id,
+    required String name,
+    required String driver,
+    String? baseUrl,
   }) => _run(() async {
     final body = <String, Object?>{
       'name': name.trim(),
@@ -434,7 +472,16 @@ class AdminController extends ChangeNotifier {
     } on ApiException catch (e) {
       // Le premier message de validation est plus précis que le message
       // général.
-      error = e.errors.values.expand((m) => m).firstOrNull ?? e.message;
+      final first = e.errors.entries
+          .expand((f) => f.value.map((m) => (f.key, m)))
+          .firstOrNull;
+      error = switch (first) {
+        // Message non traduit par le serveur (« validation.url »).
+        (_, final m) when m.startsWith('validation.') =>
+          'Valeur refusée par le serveur. Vérifiez le champ.',
+        (_, final m) => m,
+        null => e.message,
+      };
       await _reload();
     } on Object {
       error = 'Serveur injoignable. Vérifiez la connexion.';
