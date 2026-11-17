@@ -11,6 +11,7 @@ import '../decisions/decisions_controller.dart';
 import '../engine/run_controller.dart';
 import 'agent_sheet.dart';
 import 'live_office_controller.dart';
+import 'models.dart';
 import 'office_camera.dart';
 import 'office_source.dart';
 import 'scene/iso.dart';
@@ -114,6 +115,20 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
   /// Pieds des agents sur le plateau : chacun à un poste de son département.
   late Map<String, Offset> _plateauFeet = _buildFeet();
 
+  /// Places de la salle détaillée : celles du bureau visité d'abord.
+  late Map<String, String> _roomSpots = _buildRoomSpots();
+
+  Map<String, String> _buildRoomSpots() {
+    final focus = _controller.focusedDepartment?.id;
+    final agents = focus == null
+        ? _controller.agents
+        : <OfficeAgent>[
+            ..._controller.agentsOf(focus),
+            ..._controller.agents.where((a) => a.departmentId != focus),
+          ];
+    return assignRoomSpots(agents);
+  }
+
   Map<String, Offset> _buildFeet() => <String, Offset>{
     for (final department in _controller.departments)
       for (final (i, agent) in _controller.agentsOf(department.id).indexed)
@@ -162,7 +177,10 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                     longHair: agent.avatar.longHair,
                   ),
           ];
-          while (people.length < department.headcount) {
+          // En démonstration, des collègues complètent l'effectif ; avec
+          // les vraies données, un poste sans agent reste un bureau vide.
+          while (!_controller.fromServer &&
+              people.length < department.headcount) {
             n++;
             people.add(
               PersonLook(
@@ -234,6 +252,7 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
       _shownRevision = revision;
       _geometry = _buildGeometry();
       _plateauFeet = _buildFeet();
+      _roomSpots = _buildRoomSpots();
       _plateauFrames?.dispose();
       _plateauFrames = null;
     }
@@ -259,6 +278,7 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
   void _frameFocus() {
     final focus = _controller.focusedDepartment?.id;
     _shownFocus = focus;
+    _roomSpots = _buildRoomSpots();
     if (_controller.mode != OfficeViewMode.plateau) {
       return;
     }
@@ -309,9 +329,11 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
   }
 
   Offset? _feetOf(String agentId, double time) {
-    return _controller.mode == OfficeViewMode.plateau
-        ? _plateauFeet[agentId]
-        : roomFeet(agentId, time);
+    if (_controller.mode == OfficeViewMode.plateau) {
+      return _plateauFeet[agentId];
+    }
+    final spot = _roomSpots[agentId];
+    return spot == null ? null : roomSpotFeet(spot, time);
   }
 
   @override
@@ -480,7 +502,9 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            _camera.setViewport(constraints.biggest);
+            _camera
+              ..pixelRatio = MediaQuery.devicePixelRatioOf(context)
+              ..setViewport(constraints.biggest);
             final roomy = constraints.maxWidth >= 520;
             return Stack(
               fit: StackFit.expand,

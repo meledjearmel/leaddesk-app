@@ -153,7 +153,9 @@ class _OfficePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final origin = camera.toScreen(Offset.zero);
+    // Origine calée sur un pixel physique : chaque pixel d'art tombe sur la
+    // grille de l'écran.
+    final origin = camera.snap(camera.toScreen(Offset.zero));
     // Même fond que la scène : le plateau entier se fond dans la vue.
     canvas.drawRect(
       Offset.zero & size,
@@ -164,11 +166,16 @@ class _OfficePainter extends CustomPainter {
       ..clipRect(Offset.zero & size)
       ..translate(origin.dx, origin.dy)
       ..scale(camera.scale)
-      // Agrandissement sans lissage : le grain du pixel art est conservé.
+      // Agrandissement entier sans lissage : le grain du pixel art est
+      // conservé ; une réduction, elle, est lissée pour rester lisible.
       ..drawImage(
         frames.at(time.value),
         Offset.zero,
-        Paint()..filterQuality = FilterQuality.none,
+        Paint()
+          ..filterQuality = camera.crisp
+              ? FilterQuality.none
+              : FilterQuality.medium
+          ..isAntiAlias = false,
       );
     if (frames.showWalker) {
       final walker = OfficeLayout.walkerAt(time.value);

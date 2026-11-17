@@ -38,6 +38,43 @@ class AvatarStyle {
 /// Où placer l'étiquette d'un agent par rapport à son personnage.
 enum TagPlacement { aboveLeft, above, aboveRight, belowRight }
 
+/// État réel d'un agent, lu sur le serveur (phase 5) : ce que le bureau
+/// montre de lui.
+enum AgentState {
+  /// Exécute une tâche.
+  working('Au travail', Color(0xFF3FB950)),
+
+  /// Sa tâche attend que l'ordinateur hôte revienne en ligne.
+  waitingHost('Attend son ordinateur', Color(0xFF8B949E)),
+
+  /// Une demande attend le CEO.
+  waitingDecision('Attend votre décision', Color(0xFFF2B34C)),
+
+  /// Limite de coût atteinte : pause jusqu'à la décision du CEO.
+  pausedCost('Limite de coût atteinte', Color(0xFFF08A5D)),
+
+  /// Mis en pause par le CEO.
+  paused('En pause', Color(0xFF8B949E)),
+
+  /// Sa dernière exécution a échoué.
+  blocked('Bloqué', Color(0xFFE5484D)),
+
+  /// En service, sans tâche en cours.
+  idle('Disponible', Color(0xFF6E7681)),
+
+  /// Pas encore en service.
+  draft('En brouillon', Color(0xFF484F58));
+
+  const AgentState(this.label, this.color);
+
+  final String label;
+  final Color color;
+
+  /// Vrai quand le CEO doit regarder : l'étiquette passe devant.
+  bool get needsAttention =>
+      this == waitingDecision || this == pausedCost || this == blocked;
+}
+
 /// Agent affiché dans le bureau vivant.
 class OfficeAgent {
   const OfficeAgent({
@@ -54,7 +91,14 @@ class OfficeAgent {
     this.tagDetail,
     this.speech,
     this.typing = false,
+    this._state,
   });
+
+  final AgentState? _state;
+
+  /// État réel ; en démonstration, déduit de [working].
+  AgentState get state =>
+      _state ?? (working ? AgentState.working : AgentState.idle);
 
   final String id;
   final String name;

@@ -108,6 +108,9 @@ class ApiOfficeSource implements OfficeSource, ProposalDecider, PlanSaver {
       client.getList('positions'),
       client.getList('agents'),
       client.getList('office/plans?status=proposed'),
+      client.getList('task-runs'),
+      client.getList('decisions?status=pending'),
+      client.getList('tasks'),
     ]);
     final departments = <OfficeDepartment>[
       for (final (i, raw)
@@ -142,6 +145,9 @@ class ApiOfficeSource implements OfficeSource, ProposalDecider, PlanSaver {
         units: results[2]! as List<Map<String, Object?>>,
         positions: positions,
         agents: rawAgents,
+        runs: results[6]! as List<Map<String, Object?>>,
+        decisions: results[7]! as List<Map<String, Object?>>,
+        tasks: results[8]! as List<Map<String, Object?>>,
       ),
       proposals: <OfficeProposal>[
         for (final raw in results[5]! as List<Map<String, Object?>>)
@@ -201,7 +207,30 @@ class ApiOfficeSource implements OfficeSource, ProposalDecider, PlanSaver {
     required List<Map<String, Object?>> units,
     required List<Map<String, Object?>> positions,
     required List<Map<String, Object?>> agents,
+    List<Map<String, Object?>> runs = const <Map<String, Object?>>[],
+    List<Map<String, Object?>> decisions = const <Map<String, Object?>>[],
+    List<Map<String, Object?>> tasks = const <Map<String, Object?>>[],
   }) {
+    final titles = <int, String>{
+      for (final t in tasks)
+        (t['id']! as num).toInt(): t['title'] as String? ?? '',
+    };
+    // Dernière exécution de chaque agent.
+    final lastRun = <int, Map<String, Object?>>{};
+    for (final run in runs) {
+      final agent = (run['agent_id'] as num?)?.toInt();
+      if (agent == null) {
+        continue;
+      }
+      final known = lastRun[agent];
+      if (known == null ||
+          (run['id']! as num).toInt() > (known['id']! as num).toInt()) {
+        lastRun[agent] = run;
+      }
+    }
+    final asking = <int>{
+      for (final d in decisions) ?(d['requested_by_agent_id'] as num?)?.toInt(),
+    };
     final parents = <int, int?>{
       for (final unit in units)
         (unit['id']! as num).toInt(): (unit['parent_id'] as num?)?.toInt(),
@@ -227,18 +256,68 @@ class ApiOfficeSource implements OfficeSource, ProposalDecider, PlanSaver {
     return <OfficeAgent>[
       for (final (i, agent) in agents.indexed)
         if (byId[(agent['position_id'] as num?)?.toInt()] case final position?)
-          OfficeAgent(
-            id: '${agent['id']}',
-            name: agent['name']! as String,
-            position: position['title']! as String,
-            status: statusLabel(agent['status'] as String?),
-            provider: AgentProvider.bot,
-            avatar: avatarFor(i),
-            tagPlacement: TagPlacement.values[i % TagPlacement.values.length],
-            departmentId: '${rootOf((position['unit_id']! as num).toInt())}',
-            working: agent['status'] == 'active',
-          ),
+          () {
+            final id = (agent['id']! as num).toInt();
+            final run = lastRun[id];
+            final state = stateOf(
+              active: agent['status'] == 'active',
+              run: run,
+              asking: asking.contains(id),
+            );
+            final task = run == null
+                ? null
+                : titles[(run['task_id'] as num?)?.toInt()];
+            final detail = switch (state) {
+              AgentState.working => task,
+              AgentState.idle || AgentState.draft => null,
+              _ => state.label,
+            };
+            return OfficeAgent(
+              id: '$id',
+              name: agent['name']! as String,
+              position: position['title']! as String,
+              status: state == AgentState.working && task != null
+                  ? 'Au travail · $task'
+                  : state.label,
+              provider: AgentProvider.bot,
+              avatar: avatarFor(i),
+              tagPlacement: TagPlacement.values[i % TagPlacement.values.length],
+              departmentId: '${rootOf((position['unit_id']! as num).toInt())}',
+              working: state == AgentState.working,
+              tagDetail: detail,
+              state: state,
+            );
+          }(),
     ];
+  }
+
+  /// État d'un agent d'après sa dernière exécution et les demandes qui
+  /// attendent le CEO.
+  static AgentState stateOf({
+    required bool active,
+    Map<String, Object?>? run,
+    bool asking = false,
+  }) {
+    if (!active) {
+      return AgentState.draft;
+    }
+    final open = run != null && run['ended_at'] == null;
+    final status = run?['status'];
+    if (open && status == 'paused_cost') {
+      return AgentState.pausedCost;
+    }
+    if (asking) {
+      return AgentState.waitingDecision;
+    }
+    if (open) {
+      return switch (status) {
+        'running' when run['host_online'] == false => AgentState.waitingHost,
+        'running' => AgentState.working,
+        'paused' => AgentState.paused,
+        _ => AgentState.idle,
+      };
+    }
+    return status == 'failed' ? AgentState.blocked : AgentState.idle;
   }
 
   static String statusLabel(String? status) => switch (status) {

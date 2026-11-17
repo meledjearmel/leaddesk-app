@@ -35,15 +35,46 @@ class OfficeCamera extends ChangeNotifier {
   /// Point de la scène placé au centre de la vue, en pixels d'art.
   Offset get center => _center;
 
-  /// Pixels d'écran par pixel d'art.
+  /// Pixels physiques par pixel logique (échelle de Windows : 1, 1,25,
+  /// 1,5…).
+  double pixelRatio = 1;
+
+  /// Pixels d'écran (logiques) par pixel d'art.
+  ///
+  /// Arrondi pour qu'un pixel d'art couvre un nombre entier de pixels
+  /// physiques : sans cela, certains pixels font 2 points et d'autres 3, et
+  /// le pixel art paraît flou (D-031). En dessous d'un pixel physique, on
+  /// garde une fraction simple (1/2, 1/3…).
   double get scale {
     if (_viewport.isEmpty) {
       return 1;
     }
     final sx = _viewport.width / _scene.width;
     final sy = _viewport.height / _scene.height;
-    return (_contain ? min(sx, sy) : max(sx, sy)) * _zoom;
+    final raw = (_contain ? min(sx, sy) : max(sx, sy)) * _zoom;
+    // « Couvrir » arrondit vers le haut : pas de vide sur les bords.
+    return snapScale(raw, pixelRatio, up: !_contain);
   }
+
+  /// Échelle la plus proche qui tombe juste sur la grille des pixels
+  /// physiques.
+  static double snapScale(double raw, double pixelRatio, {bool up = false}) {
+    final physical = raw * pixelRatio;
+    if (physical >= 1) {
+      return (up ? physical.ceil() : physical.round()) / pixelRatio;
+    }
+    return 1 / (1 / physical).round() / pixelRatio;
+  }
+
+  /// Vrai si l'image est agrandie d'un nombre entier de pixels physiques :
+  /// elle se dessine alors sans lissage.
+  bool get crisp => scale * pixelRatio >= 1;
+
+  /// Arrondit un point à l'écran sur la grille des pixels physiques.
+  Offset snap(Offset screenPoint) => Offset(
+    (screenPoint.dx * pixelRatio).roundToDouble() / pixelRatio,
+    (screenPoint.dy * pixelRatio).roundToDouble() / pixelRatio,
+  );
 
   /// Partie de la scène visible, en pixels d'art.
   Rect get visibleRect => Rect.fromCenter(
@@ -95,7 +126,17 @@ class OfficeCamera extends ChangeNotifier {
   /// Zoome en gardant sous le curseur le point de la scène visé.
   void zoomAt(Offset screenFocal, double factor) {
     final anchor = toScene(screenFocal);
+    final before = scale;
     _zoom = (_zoom * factor).clamp(minZoom, maxZoom);
+    // L'échelle avance par crans entiers : on force au moins un cran pour
+    // que chaque clic de zoom ait un effet.
+    for (
+      var i = 0;
+      i < 40 && scale == before && _zoom > minZoom && _zoom < maxZoom;
+      i++
+    ) {
+      _zoom = (_zoom * factor).clamp(minZoom, maxZoom);
+    }
     _center = anchor - (screenFocal - _viewport.center(Offset.zero)) / scale;
     _clamp();
     notifyListeners();

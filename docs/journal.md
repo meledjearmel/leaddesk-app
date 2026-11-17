@@ -172,3 +172,11 @@ Décisions : D-012, D-013. Ordre : 0 → 1 → 2 → 5 → 3 → 4 → 6. Chaque
 **Testé** : tests de navigation, de cadrage et de fiche ; capture `bureau_visite`.
 
 **Reste à faire (phase 5)** : états réels des agents sur la scène, animations libres, horloge de bureau, panneau d'activité réel, « Donner une mission », intérieur détaillé par département ; puis Dashboard.
+
+## Netteté, étiquettes, états réels (17 novembre 2026)
+
+**Fait** : pixel art net (agrandissement entier, image calée sur l'écran) ; étiquettes sans chevauchement et hors des barres ; une place par agent en vue « Salle » ; états réels des agents sur la scène et dans la liste ; postes vacants visibles (D-031).
+
+**Testé** : 169 tests verts ; capture `bureau_visite`.
+
+**Reste à faire** : moins d'étiquettes, mieux hiérarchisées ; vue « Salle » qui représente vraiment le bureau entier d'un département (demande du CEO, à préciser avec lui avant de commencer).

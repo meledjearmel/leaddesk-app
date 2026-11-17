@@ -8,11 +8,25 @@ import 'package:leaddesk_app/api/api_client.dart';
 import 'package:leaddesk_app/app/theme.dart';
 import 'package:leaddesk_app/live_office/live_office_controller.dart';
 import 'package:leaddesk_app/live_office/live_office_screen.dart';
+import 'package:leaddesk_app/live_office/models.dart';
 import 'package:leaddesk_app/live_office/office_source.dart';
 
 /// Faux serveur : une RH (unité 1, avec un pôle 3) et des Moyens généraux
 /// (unité 2), deux agents dont un sans poste.
 Map<String, Object?> _routes({Object? plan}) => <String, Object?>{
+  'task-runs': <Object?>[
+    <String, Object?>{
+      'id': 31,
+      'task_id': 4,
+      'agent_id': 7,
+      'status': 'running',
+      'host_online': true,
+    },
+  ],
+  'decisions': <Object?>[],
+  'tasks': <Object?>[
+    <String, Object?>{'id': 4, 'title': 'Rédiger la note'},
+  ],
   'office/departments': <Object?>[
     <String, Object?>{
       'id': '1',
@@ -171,7 +185,33 @@ void main() {
       expect(agent.position, 'Recruteur');
       // Le pôle 3 est sous l'unité 1 : l'agent travaille dans ses salles.
       expect(agent.departmentId, '1');
-      expect(agent.status, 'En service');
+      // État réel : son exécution est en cours.
+      expect(agent.state, AgentState.working);
+      expect(agent.status, 'Au travail · Rédiger la note');
+      expect(agent.tagDetail, 'Rédiger la note');
+      expect(
+        ApiOfficeSource.stateOf(
+          active: true,
+          run: const <String, Object?>{'status': 'paused_cost'},
+          asking: true,
+        ),
+        AgentState.pausedCost,
+      );
+      expect(
+        ApiOfficeSource.stateOf(active: true, asking: true),
+        AgentState.waitingDecision,
+      );
+      expect(
+        ApiOfficeSource.stateOf(
+          active: true,
+          run: const <String, Object?>{
+            'status': 'failed',
+            'ended_at': '2026-11-17',
+          },
+        ),
+        AgentState.blocked,
+      );
+      expect(ApiOfficeSource.stateOf(active: false), AgentState.draft);
     });
 
     test('les propositions en attente sont lues avec leur auteur', () async {

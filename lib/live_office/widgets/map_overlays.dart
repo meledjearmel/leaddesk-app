@@ -8,21 +8,56 @@ import '../office_camera.dart';
 import '../scene/office_scene.dart';
 import '../scene/plan_scene.dart';
 import 'common.dart';
+import 'declutter.dart';
 
 /// Pieds d'un agent dans la scène, en pixels d'art, au temps donné ;
 /// `null` si l'agent n'est pas dans la scène.
 typedef FeetOf = Offset? Function(String agentId, double time);
 
-/// Pieds des agents dans la salle détaillée de référence.
-Offset? roomFeet(String agentId, double time) {
-  return switch (agentId) {
-    'forge' => OfficeLayout.forgeSeat + const Offset(0, -8),
-    'atlas' => OfficeLayout.atlasFeet,
-    'quill' => OfficeLayout.quillFeet,
-    'scout' => OfficeLayout.scoutFeet,
-    _ => OfficeLayout.walkerAt(time).feet,
-  };
+/// Bandes de la carte occupées par les barres du haut et du bas : aucune
+/// étiquette ne s'y glisse.
+const EdgeInsets mapSafeArea = EdgeInsets.only(top: 58, bottom: 62);
+
+/// Places de la salle détaillée de référence, dans l'ordre d'attribution.
+const List<String> roomSpots = <String>[
+  'forge',
+  'atlas',
+  'quill',
+  'scout',
+  'relay',
+];
+
+/// Pieds d'une place de la salle détaillée.
+Offset roomSpotFeet(String spot, double time) => switch (spot) {
+  'forge' => OfficeLayout.forgeSeat + const Offset(0, -8),
+  'atlas' => OfficeLayout.atlasFeet,
+  'quill' => OfficeLayout.quillFeet,
+  'scout' => OfficeLayout.scoutFeet,
+  _ => OfficeLayout.walkerAt(time).feet,
+};
+
+/// Une place par agent dans la salle détaillée : les agents de
+/// démonstration gardent la leur, les autres prennent les places libres
+/// dans l'ordre. Faute de place, un agent n'est pas montré dans la salle
+/// (au lieu d'être empilé sur un autre).
+Map<String, String> assignRoomSpots(List<OfficeAgent> agents) {
+  final result = <String, String>{};
+  final free = List<String>.of(roomSpots);
+  for (final agent in agents) {
+    if (free.remove(agent.id)) {
+      result[agent.id] = agent.id;
+    }
+  }
+  for (final agent in agents) {
+    if (!result.containsKey(agent.id) && free.isNotEmpty) {
+      result[agent.id] = free.removeAt(0);
+    }
+  }
+  return result;
 }
+
+/// Pieds des agents de démonstration dans la salle détaillée.
+Offset? roomFeet(String agentId, double time) => roomSpotFeet(agentId, time);
 
 /// Étiquettes des agents, accrochées à leur personnage : elles suivent le
 /// déplacement et le zoom de la scène sans changer de taille.
@@ -50,9 +85,9 @@ class AgentTagLayer extends StatelessWidget {
         final time = controller.sceneTime.value;
         final scale = camera.scale;
         const head = OfficeLayout.personHeight;
-        return Stack(
-          clipBehavior: Clip.none,
-          children: <Widget>[
+        return DeclutteredTags(
+          safeArea: mapSafeArea,
+          entries: <TagEntry>[
             for (final agent in controller.agents)
               // Vue d'ensemble du plateau : seuls les agents en
               // conversation ou sélectionnés gardent leur étiquette.
@@ -88,19 +123,22 @@ class AgentTagLayer extends StatelessWidget {
                         const Offset(0, 8),
                       ),
                     };
-                    final at = camera.toScreen(anchor) + gap;
-                    return Positioned(
-                      left: at.dx,
-                      top: at.dy,
-                      child: FractionalTranslation(
-                        translation: shift,
-                        child: _AgentTag(
-                          agent: agent,
-                          selected: agent.id == controller.selectedAgentId,
-                          // Les bulles se resserrent quand la scène est dézoomée.
-                          compact: scale < 1.6,
-                          onTap: () => controller.openAgentSheet(agent.id),
-                        ),
+                    final selected = agent.id == controller.selectedAgentId;
+                    return TagEntry(
+                      id: agent.id,
+                      anchor: camera.toScreen(anchor) + gap,
+                      shift: shift,
+                      priority: selected
+                          ? 3
+                          : (agent.inConversation
+                                ? 2
+                                : (agent.state.needsAttention ? 1 : 0)),
+                      child: _AgentTag(
+                        agent: agent,
+                        selected: selected,
+                        // Les bulles se resserrent quand la scène est dézoomée.
+                        compact: scale < 1.6,
+                        onTap: () => controller.openAgentSheet(agent.id),
                       ),
                     );
                   }(),
@@ -145,43 +183,51 @@ class DepartmentTagLayer extends StatelessWidget {
         // De loin, le nom du département suffit.
         final far = camera.scale < 0.9;
         final seen = <String>{};
-        return Stack(
-          clipBehavior: Clip.none,
-          children: <Widget>[
-            for (final tag in geometry.tags)
+        return DeclutteredTags(
+          safeArea: mapSafeArea,
+          entries: <TagEntry>[
+            for (final (index, tag) in geometry.tags.indexed)
               if (tag.department == null
                   ? detailed
                   : (seen.add(tag.department!.id) || detailed))
                 () {
-                  final at = camera.toScreen(tag.anchor);
                   final department = tag.department;
                   final open = onOpen;
-                  return Positioned(
-                    left: at.dx,
-                    top: at.dy,
-                    child: FractionalTranslation(
-                      translation: const Offset(0, -1),
-                      child: LdPressable(
-                        tooltip: department == null || open == null
+                  final first =
+                      department != null &&
+                      geometry.tags.indexWhere(
+                            (t) => t.department?.id == department.id,
+                          ) ==
+                          index;
+                  return TagEntry(
+                    id: 'room-$index',
+                    anchor: camera.toScreen(tag.anchor),
+                    shift: const Offset(0, -1),
+                    // Le bureau visité, puis une étiquette par département,
+                    // passent avant les noms de salles.
+                    priority: department != null && department.id == focusedId
+                        ? 2
+                        : (first ? 1 : 0),
+                    child: LdPressable(
+                      tooltip: department == null || open == null
+                          ? null
+                          : 'Entrer dans le bureau ${department.name}',
+                      onTap: department == null || open == null
+                          ? null
+                          : () => open(department.id),
+                      builder: (context, hovered) => _DepartmentTag(
+                        highlighted: hovered || department?.id == focusedId,
+                        title: department?.name ?? tag.room.label,
+                        detail: department == null || far
                             ? null
-                            : 'Entrer dans le bureau ${department.name}',
-                        onTap: department == null || open == null
-                            ? null
-                            : () => open(department.id),
-                        builder: (context, hovered) => _DepartmentTag(
-                          highlighted: hovered || department?.id == focusedId,
-                          title: department?.name ?? tag.room.label,
-                          detail: department == null || far
-                              ? null
-                              : (detailed
-                                    ? tag.room.label
-                                    : '${presentOf(department.id)} présent'
-                                          '${presentOf(department.id) > 1 ? 's' : ''}'
-                                          ' · ${department.headcount} postes'),
-                          color: department == null
-                              ? LdColors.textMuted
-                              : Color(department.color),
-                        ),
+                            : (detailed
+                                  ? tag.room.label
+                                  : '${presentOf(department.id)} présent'
+                                        '${presentOf(department.id) > 1 ? 's' : ''}'
+                                        ' · ${department.headcount} postes'),
+                        color: department == null
+                            ? LdColors.textMuted
+                            : Color(department.color),
                       ),
                     ),
                   );
@@ -282,8 +328,12 @@ class _AgentTag extends StatelessWidget {
         radius: 10,
         blur: 0,
         color: hovered ? const Color(0xF2262523) : const Color(0xEB1B1A19),
-        borderColor: highlighted ? LdColors.amber : LdColors.borderStrong,
-        borderWidth: highlighted ? 1.5 : 1,
+        borderColor: highlighted
+            ? LdColors.amber
+            : (agent.state.needsAttention
+                  ? agent.state.color
+                  : LdColors.borderStrong),
+        borderWidth: highlighted || agent.state.needsAttention ? 1.5 : 1,
         padding: const EdgeInsets.fromLTRB(10, 6, 12, 7),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -309,6 +359,19 @@ class _AgentTag extends StatelessWidget {
                     if (agent.working) ...<Widget>[
                       const SizedBox(width: 7),
                       const PulseDot(size: 6),
+                    ] else if (agent.state != AgentState.idle) ...<Widget>[
+                      const SizedBox(width: 7),
+                      Tooltip(
+                        message: agent.state.label,
+                        child: Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: agent.state.color,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
                     ],
                   ],
                 ),

@@ -250,6 +250,18 @@ Questions ouvertes pour Armel : qui peut proposer un aménagement (une IA dédi�
   - aucun effet sur la progression ni sur les décisions ;
   - dépense affichée à part.
 - **Quand** : après les états réels et les animations libres du bureau.
+### D-031 · Netteté du pixel art, étiquettes sans chevauchement, états réels
+
+- **Netteté** : l'agrandissement de la scène est arrondi pour qu'un pixel d'art couvre un nombre entier de pixels physiques, en tenant compte de l'échelle de Windows. L'image est calée sur la grille de l'écran et dessinée sans lissage. Le zoom avance donc par crans. En dessous d'un pixel physique (vue d'ensemble d'un grand plateau), l'image est réduite avec lissage pour rester lisible.
+- **Étiquettes** :
+  - Elles sont mesurées puis placées par priorité : sélection, conversation, agent qui attend le CEO, puis les autres.
+  - Une étiquette qui en recouvre une autre est décalée vers le haut ou le bas ; faute de place, elle est masquée.
+  - Aucune ne passe sous les barres du haut ou du bas.
+  - En vue « Salle », chaque agent a sa propre place (celles du bureau visité d'abord) : plus d'agents empilés sur le même personnage.
+- **États réels** :
+  - Chaque agent affiche un état déduit de sa dernière exécution et des demandes en attente : au travail (avec la tâche), attend son ordinateur, attend votre décision, limite de coût atteinte, en pause, bloqué (dernière exécution en échec), disponible, en brouillon.
+  - Les états qui demandent le CEO ont un liseré et une pastille de couleur.
+  - Avec les vraies données, un poste sans agent reste un bureau vide ; les collègues de remplissage ne servent qu'à la démonstration.
 ## Propositions de mise à jour des documents de conception
 
 - `REGLES_METIER_LEADDESK.md` (RM-02) : ajouter qu'une entreprise vierge contient toujours les unités RH et Moyens généraux, chacune avec un poste de responsable sans agent (D-013).
