@@ -32,6 +32,7 @@ class DeclutteredTags extends StatelessWidget {
     required this.entries,
     this.safeArea = EdgeInsets.zero,
     this.gap = 4,
+    this.maxVisible,
     super.key,
   });
 
@@ -41,9 +42,12 @@ class DeclutteredTags extends StatelessWidget {
   final EdgeInsets safeArea;
   final double gap;
 
+  /// Nombre maximal d'étiquettes visibles ; les plus prioritaires d'abord.
+  final int? maxVisible;
+
   @override
   Widget build(BuildContext context) => CustomMultiChildLayout(
-    delegate: _DeclutterDelegate(entries, safeArea, gap),
+    delegate: _DeclutterDelegate(entries, safeArea, gap, maxVisible),
     children: <Widget>[
       for (final entry in entries) LayoutId(id: entry.id, child: entry.child),
     ],
@@ -51,11 +55,12 @@ class DeclutteredTags extends StatelessWidget {
 }
 
 class _DeclutterDelegate extends MultiChildLayoutDelegate {
-  _DeclutterDelegate(this.entries, this.safeArea, this.gap);
+  _DeclutterDelegate(this.entries, this.safeArea, this.gap, this.maxVisible);
 
   final List<TagEntry> entries;
   final EdgeInsets safeArea;
   final double gap;
+  final int? maxVisible;
 
   /// Positions retenues lors du dernier placement, pour les tests.
   static Map<Object, Rect?> lastLayout = <Object, Rect?>{};
@@ -80,6 +85,8 @@ class _DeclutterDelegate extends MultiChildLayoutDelegate {
         result[entry.id] = rectAt(desired);
         continue;
       }
+      final forced = entry.priority == top && entry.priority > 0;
+      final full = maxVisible != null && placed.length >= maxVisible!;
       Rect? chosen;
       final step = s.height + gap;
       for (final dy in <double>[
@@ -94,12 +101,12 @@ class _DeclutterDelegate extends MultiChildLayoutDelegate {
         final free = !placed.any((r) => r.inflate(gap / 2).overlaps(candidate));
         final inside =
             candidate.top >= area.top && candidate.bottom <= area.bottom;
-        if (free && inside) {
+        if (free && inside && !full) {
           chosen = candidate;
           break;
         }
       }
-      if (chosen == null && entry.priority == top && entry.priority > 0) {
+      if (chosen == null && forced) {
         // La sélection reste toujours visible, quitte à chevaucher.
         chosen = rectAt(desired);
       }

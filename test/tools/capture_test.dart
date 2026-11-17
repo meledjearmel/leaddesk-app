@@ -143,8 +143,10 @@ void main() {
       ),
     );
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.byTooltip('Entrer dans le bureau Technique'));
-    await tester.pump(const Duration(milliseconds: 300));
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.byTooltip('Bureau suivant'));
+      await tester.pump(const Duration(milliseconds: 100));
+    }
     await tester.tap(find.text('Forge').first);
     await tester.pump(const Duration(milliseconds: 600));
 

@@ -80,71 +80,192 @@ class AgentTagLayer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge(<Listenable>[camera, controller.sceneTime]),
+      listenable: Listenable.merge(<Listenable>[
+        camera,
+        controller.sceneTime,
+        controller,
+      ]),
       builder: (context, _) {
         final time = controller.sceneTime.value;
         final scale = camera.scale;
         const head = OfficeLayout.personHeight;
-        return DeclutteredTags(
-          safeArea: mapSafeArea,
-          entries: <TagEntry>[
+        final labelled = <String>{
+          for (final agent in controller.agents)
+            if (showsTag(agent, scale)) agent.id,
+        };
+        return Stack(
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            // Pastille au-dessus de chaque agent sans étiquette : le survol
+            // fait apparaître l'étiquette, le clic ouvre la fiche.
             for (final agent in controller.agents)
-              // Vue d'ensemble du plateau : seuls les agents en
-              // conversation ou sélectionnés gardent leur étiquette.
-              if (!uniformPlacement ||
-                  scale >= 1.6 ||
-                  agent.inConversation ||
-                  agent.id == controller.selectedAgentId)
+              if (!labelled.contains(agent.id))
                 if (feetOf(agent.id, time) case final feet?)
                   () {
-                    // Point d'accroche, en pixels d'art, puis écart fixe à l'écran.
-                    final placement = uniformPlacement
-                        ? TagPlacement.above
-                        : agent.tagPlacement;
-                    final (anchor, shift, gap) = switch (placement) {
-                      TagPlacement.aboveLeft => (
-                        feet + const Offset(-8, -head),
-                        const Offset(-1, -1),
-                        const Offset(-4, -4),
-                      ),
-                      TagPlacement.above => (
-                        feet + const Offset(0, -head),
-                        const Offset(-0.5, -1),
-                        const Offset(0, -8),
-                      ),
-                      TagPlacement.aboveRight => (
-                        feet + const Offset(-12, -head),
-                        const Offset(0, -1),
-                        const Offset(0, -8),
-                      ),
-                      TagPlacement.belowRight => (
-                        feet + const Offset(-40, 4),
-                        Offset.zero,
-                        const Offset(0, 8),
-                      ),
-                    };
-                    final selected = agent.id == controller.selectedAgentId;
-                    return TagEntry(
-                      id: agent.id,
-                      anchor: camera.toScreen(anchor) + gap,
-                      shift: shift,
-                      priority: selected
-                          ? 3
-                          : (agent.inConversation
-                                ? 2
-                                : (agent.state.needsAttention ? 1 : 0)),
-                      child: _AgentTag(
+                    final at = camera.toScreen(
+                      feet + const Offset(0, -OfficeLayout.personHeight),
+                    );
+                    return Positioned(
+                      left: at.dx - 9,
+                      top: at.dy - 22,
+                      child: _AgentMarker(
                         agent: agent,
-                        selected: selected,
-                        // Les bulles se resserrent quand la scène est dézoomée.
-                        compact: scale < 1.6,
+                        onHover: (inside) =>
+                            controller.hoverAgent(inside ? agent.id : null),
                         onTap: () => controller.openAgentSheet(agent.id),
                       ),
                     );
                   }(),
+            DeclutteredTags(
+              safeArea: mapSafeArea,
+              maxVisible: controller.tagMode == TagMode.all ? null : maxTags,
+              entries: _entries(time, scale, head, labelled),
+            ),
           ],
         );
       },
+    );
+  }
+
+  /// Étiquettes visibles en même temps, hors sélection (D-032).
+  static const int maxTags = 6;
+
+  /// Vrai si l'agent garde son étiquette (D-032) : ce qui demande le CEO,
+  /// la sélection, le survol, la conversation ; de près, les agents du
+  /// bureau visité.
+  bool showsTag(OfficeAgent agent, double scale) {
+    final c = controller;
+    final pinned =
+        agent.id == c.selectedAgentId || agent.id == c.hoveredAgentId;
+    return switch (c.tagMode) {
+      TagMode.none => pinned,
+      TagMode.all => true,
+      TagMode.essential =>
+        pinned ||
+            agent.inConversation ||
+            agent.state.needsAttention ||
+            (scale >= closeUp &&
+                (c.mode == OfficeViewMode.room ||
+                    agent.departmentId == c.focusedDepartment?.id)),
+    };
+  }
+
+  /// Zoom à partir duquel les agents du bureau visité sont nommés.
+  static const double closeUp = 2.4;
+
+  List<TagEntry> _entries(
+    double time,
+    double scale,
+    double head,
+    Set<String> labelled,
+  ) {
+    return <TagEntry>[
+      for (final agent in controller.agents)
+        if (labelled.contains(agent.id))
+          if (feetOf(agent.id, time) case final feet?)
+            () {
+              // Point d'accroche, en pixels d'art, puis écart fixe à l'écran.
+              final placement = uniformPlacement
+                  ? TagPlacement.above
+                  : agent.tagPlacement;
+              final (anchor, shift, gap) = switch (placement) {
+                TagPlacement.aboveLeft => (
+                  feet + const Offset(-8, -OfficeLayout.personHeight),
+                  const Offset(-1, -1),
+                  const Offset(-4, -4),
+                ),
+                TagPlacement.above => (
+                  feet + const Offset(0, -OfficeLayout.personHeight),
+                  const Offset(-0.5, -1),
+                  const Offset(0, -8),
+                ),
+                TagPlacement.aboveRight => (
+                  feet + const Offset(-12, -OfficeLayout.personHeight),
+                  const Offset(0, -1),
+                  const Offset(0, -8),
+                ),
+                TagPlacement.belowRight => (
+                  feet + const Offset(-40, 4),
+                  Offset.zero,
+                  const Offset(0, 8),
+                ),
+              };
+              final selected = agent.id == controller.selectedAgentId;
+              final hovered = agent.id == controller.hoveredAgentId;
+              return TagEntry(
+                id: agent.id,
+                anchor: camera.toScreen(anchor) + gap,
+                shift: shift,
+                priority: selected || hovered
+                    ? 4
+                    : (agent.state.needsAttention
+                          ? 3
+                          : (agent.inConversation ? 2 : 0)),
+                child: MouseRegion(
+                  onEnter: (_) => controller.hoverAgent(agent.id),
+                  onExit: (_) => controller.hoverAgent(null),
+                  child: _AgentTag(
+                    agent: agent,
+                    selected: selected,
+                    // Les bulles se resserrent quand la scène est
+                    // dézoomée.
+                    compact: scale < 1.6,
+                    onTap: () => controller.openAgentSheet(agent.id),
+                  ),
+                ),
+              );
+            }(),
+    ];
+  }
+}
+
+/// Pastille d'un agent sans étiquette : couleur de son état, pulsation
+/// quand il travaille.
+class _AgentMarker extends StatelessWidget {
+  const _AgentMarker({
+    required this.agent,
+    required this.onHover,
+    required this.onTap,
+  });
+
+  final OfficeAgent agent;
+  final ValueChanged<bool> onHover;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = agent.state;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => onHover(true),
+      onExit: (_) => onHover(false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Semantics(
+          button: true,
+          label: '${agent.name}, ${state.label}',
+          child: SizedBox.square(
+            dimension: 18,
+            child: Center(
+              child: state == AgentState.working
+                  ? const PulseDot(size: 8)
+                  : Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: state.color,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xCC0B0908),
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -159,8 +280,11 @@ class DepartmentTagLayer extends StatelessWidget {
     required this.presentOf,
     this.onOpen,
     this.focusedId,
+    this.tagMode = TagMode.essential,
     super.key,
   });
+
+  final TagMode tagMode;
 
   final OfficeCamera camera;
   final PlanGeometry geometry;
@@ -187,9 +311,15 @@ class DepartmentTagLayer extends StatelessWidget {
           safeArea: mapSafeArea,
           entries: <TagEntry>[
             for (final (index, tag) in geometry.tags.indexed)
+              // Une étiquette par département ; les noms de salles
+              // seulement de près dans le bureau visité, ou en mode
+              // « toutes » (D-032).
               if (tag.department == null
-                  ? detailed
-                  : (seen.add(tag.department!.id) || detailed))
+                  ? (tagMode == TagMode.all && detailed)
+                  : (seen.add(tag.department!.id) ||
+                        (tagMode == TagMode.all && detailed) ||
+                        (tag.department!.id == focusedId &&
+                            camera.scale >= AgentTagLayer.closeUp)))
                 () {
                   final department = tag.department;
                   final open = onOpen;
@@ -630,6 +760,17 @@ class MapControlBar extends StatelessWidget {
                   : Icons.crop_square,
               size: 17,
               color: const Color(0xFFB7B2AA),
+            ),
+          ),
+          _BarButton(
+            label: controller.tagMode.short,
+            tooltip:
+                'Étiquettes : ${controller.tagMode.label} · cliquer pour changer',
+            onTap: controller.cycleTagMode,
+            leading: const Icon(
+              Icons.label_outline,
+              size: 17,
+              color: Color(0xFFB7B2AA),
             ),
           ),
           LdIconButton(

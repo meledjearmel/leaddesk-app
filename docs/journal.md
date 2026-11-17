@@ -180,3 +180,9 @@ Décisions : D-012, D-013. Ordre : 0 → 1 → 2 → 5 → 3 → 4 → 6. Chaque
 **Testé** : 169 tests verts ; capture `bureau_visite`.
 
 **Reste à faire** : moins d'étiquettes, mieux hiérarchisées ; vue « Salle » qui représente vraiment le bureau entier d'un département (demande du CEO, à préciser avec lui avant de commencer).
+
+## Étiquettes essentielles et zoom plafonné (17 novembre 2026)
+
+**Fait** : pastilles d'état pour tous les agents ; étiquettes réservées à ce qui compte, six au plus ; noms de salles seulement de près dans le bureau visité ; réglage « Essentielles / Toutes / Aucune » ; zoom plafonné à 3 points par pixel et à ×2 pour un bureau visité, après le retour du CEO (« on ne voit absolument rien ») (D-032). Prompt de la vue « Salle » écrit pour une autre session (`docs/PROMPT_VUE_SALLE.md`).
+
+**Testé** : 171 tests verts ; captures `ecran_1440`, `bureau_visite`.

@@ -17,6 +17,13 @@ class OfficeCamera extends ChangeNotifier {
   static const double maxZoom = 4;
   static const double zoomStep = 1.25;
 
+  /// Agrandissement maximal : un pixel d'art couvre au plus 3 points.
+  static const double maxScale = 3;
+
+  /// Agrandissement d'un bureau visité : assez pour reconnaître les
+  /// agents, assez peu pour voir toutes ses salles (D-032).
+  static const double focusScale = 2;
+
   Size _viewport = Size.zero;
   Size _scene = const Size(sceneWidth, sceneHeight);
   Offset _focus = OfficeLayout.focus;
@@ -43,18 +50,31 @@ class OfficeCamera extends ChangeNotifier {
   ///
   /// Arrondi pour qu'un pixel d'art couvre un nombre entier de pixels
   /// physiques : sans cela, certains pixels font 2 points et d'autres 3, et
-  /// le pixel art paraît flou (D-031). En dessous d'un pixel physique, on
-  /// garde une fraction simple (1/2, 1/3…).
+  /// le pixel art paraît flou (D-031). En dessous d'un pixel physique,
+  /// l'image est réduite avec lissage et l'échelle reste libre.
   double get scale {
     if (_viewport.isEmpty) {
       return 1;
     }
     final sx = _viewport.width / _scene.width;
     final sy = _viewport.height / _scene.height;
-    final raw = (_contain ? min(sx, sy) : max(sx, sy)) * _zoom;
+    // Au-delà, le pixel art devient trop gros pour qu'on voie la pièce.
+    final raw = min((_contain ? min(sx, sy) : max(sx, sy)) * _zoom, maxScale);
     // « Couvrir » arrondit vers le haut : pas de vide sur les bords.
     return snapScale(raw, pixelRatio, up: !_contain);
   }
+
+  /// Échelle du cadrage de départ, sans zoom ni arrondi.
+  double get _baseScale {
+    final sx = _viewport.width / _scene.width;
+    final sy = _viewport.height / _scene.height;
+    return _contain ? min(sx, sy) : max(sx, sy);
+  }
+
+  /// Zoom au-delà duquel l'agrandissement plafonne.
+  double get _zoomCap => _viewport.isEmpty
+      ? maxZoom
+      : min(maxZoom, max(minZoom, maxScale / _baseScale));
 
   /// Échelle la plus proche qui tombe juste sur la grille des pixels
   /// physiques.
@@ -63,7 +83,8 @@ class OfficeCamera extends ChangeNotifier {
     if (physical >= 1) {
       return (up ? physical.ceil() : physical.round()) / pixelRatio;
     }
-    return 1 / (1 / physical).round() / pixelRatio;
+    // Réduction : l'image est lissée, inutile d'arrondir.
+    return raw;
   }
 
   /// Vrai si l'image est agrandie d'un nombre entier de pixels physiques :
@@ -127,15 +148,15 @@ class OfficeCamera extends ChangeNotifier {
   void zoomAt(Offset screenFocal, double factor) {
     final anchor = toScene(screenFocal);
     final before = scale;
-    _zoom = (_zoom * factor).clamp(minZoom, maxZoom);
+    _zoom = (_zoom * factor).clamp(minZoom, _zoomCap);
     // L'échelle avance par crans entiers : on force au moins un cran pour
     // que chaque clic de zoom ait un effet.
     for (
       var i = 0;
-      i < 40 && scale == before && _zoom > minZoom && _zoom < maxZoom;
+      i < 40 && scale == before && _zoom > minZoom && _zoom < _zoomCap;
       i++
     ) {
-      _zoom = (_zoom * factor).clamp(minZoom, maxZoom);
+      _zoom = (_zoom * factor).clamp(minZoom, _zoomCap);
     }
     _center = anchor - (screenFocal - _viewport.center(Offset.zero)) / scale;
     _clamp();
@@ -159,12 +180,15 @@ class OfficeCamera extends ChangeNotifier {
       centerOn(sceneRect.center);
       return;
     }
-    final base = scale / _zoom;
+    final base = _baseScale;
     final fit = min(
       _viewport.width / sceneRect.width,
       _viewport.height / sceneRect.height,
     );
-    _zoom = (fit * (1 - margin) / base).clamp(minZoom, maxZoom);
+    _zoom = (min(fit * (1 - margin), focusScale) / base).clamp(
+      minZoom,
+      maxZoom,
+    );
     _center = sceneRect.center;
     _clamp();
     notifyListeners();

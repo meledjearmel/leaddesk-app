@@ -93,14 +93,18 @@ void main() {
       const cursor = Offset(450, 350);
       final target = camera.toScene(cursor);
 
-      camera.zoomAt(cursor, 2);
-      expect(camera.zoom, 2);
+      camera.zoomAt(cursor, 1.5);
+      expect(camera.zoom, 1.5);
       expect((camera.toScene(cursor) - target).distance, lessThan(1e-6));
 
       for (var i = 0; i < 20; i++) {
         camera.zoomIn();
       }
-      expect(camera.zoom, OfficeCamera.maxZoom);
+      // Plafonné : un pixel d'art ne dépasse pas 3 points (D-032).
+      expect(camera.scale, lessThanOrEqualTo(OfficeCamera.maxScale));
+      final capped = camera.zoom;
+      camera.zoomIn();
+      expect(camera.zoom, capped);
 
       for (var i = 0; i < 40; i++) {
         camera.zoomOut();

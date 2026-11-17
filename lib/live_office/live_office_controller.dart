@@ -20,6 +20,26 @@ enum OfficeViewMode {
   room,
 }
 
+/// Étiquettes affichées sur la scène.
+enum TagMode {
+  /// Seulement ce qui compte : attention requise, sélection, survol,
+  /// conversation, agents du bureau visité de près.
+  essential('essentielles', 'Essentielles'),
+
+  /// Toutes, sans se chevaucher.
+  all('toutes', 'Toutes'),
+
+  /// Aucune, sauf la sélection et le survol.
+  none('aucune', 'Aucune');
+
+  const TagMode(this.label, this.short);
+
+  final String label;
+
+  /// Libellé de la barre du bas.
+  final String short;
+}
+
 /// État de l'écran du bureau vivant : sélection, panneaux, simulation,
 /// conversation ouverte.
 class LiveOfficeController extends ChangeNotifier {
@@ -359,6 +379,30 @@ class LiveOfficeController extends ChangeNotifier {
         ? (delta > 0 ? 0 : _departments.length - 1)
         : (index + delta) % _departments.length;
     focusDepartment(_departments[next].id);
+  }
+
+  TagMode _tagMode = TagMode.essential;
+
+  /// Quelles étiquettes la scène montre (D-032).
+  TagMode get tagMode => _tagMode;
+
+  /// Essentielles → toutes → aucune → essentielles.
+  void cycleTagMode() {
+    _tagMode = TagMode.values[(_tagMode.index + 1) % TagMode.values.length];
+    notifyListeners();
+  }
+
+  String? _hoveredAgentId;
+
+  /// Agent survolé : son étiquette apparaît.
+  String? get hoveredAgentId => _hoveredAgentId;
+
+  void hoverAgent(String? id) {
+    if (_hoveredAgentId == id) {
+      return;
+    }
+    _hoveredAgentId = id;
+    notifyListeners();
   }
 
   String? _sheetAgentId;

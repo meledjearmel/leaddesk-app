@@ -262,6 +262,19 @@ Questions ouvertes pour Armel : qui peut proposer un aménagement (une IA dédi�
   - Chaque agent affiche un état déduit de sa dernière exécution et des demandes en attente : au travail (avec la tâche), attend son ordinateur, attend votre décision, limite de coût atteinte, en pause, bloqué (dernière exécution en échec), disponible, en brouillon.
   - Les états qui demandent le CEO ont un liseré et une pastille de couleur.
   - Avec les vraies données, un poste sans agent reste un bureau vide ; les collègues de remplissage ne servent qu'à la démonstration.
+### D-032 · Étiquettes : on ne voit que ce qui compte
+
+- **Par défaut (« Essentielles »)** :
+  - Chaque agent a une pastille de la couleur de son état au-dessus de la tête ; elle pulse quand il travaille.
+  - Une étiquette n'apparaît que pour un agent qui demande le CEO (décision, limite de coût, bloqué), l'agent sélectionné, l'agent survolé, ceux de la conversation, et, de près (×2,4 et plus), les agents du bureau visité.
+  - Six étiquettes au plus en même temps ; la sélection passe toujours.
+  - Les salles n'affichent que le nom de leur département, une fois ; leurs noms n'apparaissent que de près, dans le bureau visité.
+- **Réglage** : un bouton de la barre du bas fait passer de « Essentielles » à « Toutes » (sans limite, toujours sans chevauchement) puis à « Aucune » (seulement la sélection et le survol).
+- **Zoom** :
+  - le pixel art ne dépasse plus 3 points par pixel ;
+  - un bureau visité s'ouvre à ×2 au plus, pour voir toutes ses salles au lieu de quelques meubles géants ;
+  - en dessous d'un pixel physique, l'échelle n'est plus arrondie (l'image est alors lissée).
+- **Suite** : la vue « Salle » qui représente le bureau complet d'un département est confiée à une autre session ; le prompt est dans `docs/PROMPT_VUE_SALLE.md`.
 ## Propositions de mise à jour des documents de conception
 
 - `REGLES_METIER_LEADDESK.md` (RM-02) : ajouter qu'une entreprise vierge contient toujours les unités RH et Moyens généraux, chacune avec un poste de responsable sans agent (D-013).

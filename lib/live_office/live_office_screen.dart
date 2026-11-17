@@ -525,6 +525,7 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                     presentOf: (id) => _controller.agentsOf(id).length,
                     onOpen: _controller.focusDepartment,
                     focusedId: _controller.focusedDepartment?.id,
+                    tagMode: _controller.tagMode,
                   ),
                 if (!_controller.editing &&
                     _controller.mode == OfficeViewMode.plateau)
