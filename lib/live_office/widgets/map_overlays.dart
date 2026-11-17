@@ -18,47 +18,6 @@ typedef FeetOf = Offset? Function(String agentId, double time);
 /// étiquette ne s'y glisse.
 const EdgeInsets mapSafeArea = EdgeInsets.only(top: 58, bottom: 62);
 
-/// Places de la salle détaillée de référence, dans l'ordre d'attribution.
-const List<String> roomSpots = <String>[
-  'forge',
-  'atlas',
-  'quill',
-  'scout',
-  'relay',
-];
-
-/// Pieds d'une place de la salle détaillée.
-Offset roomSpotFeet(String spot, double time) => switch (spot) {
-  'forge' => OfficeLayout.forgeSeat + const Offset(0, -8),
-  'atlas' => OfficeLayout.atlasFeet,
-  'quill' => OfficeLayout.quillFeet,
-  'scout' => OfficeLayout.scoutFeet,
-  _ => OfficeLayout.walkerAt(time).feet,
-};
-
-/// Une place par agent dans la salle détaillée : les agents de
-/// démonstration gardent la leur, les autres prennent les places libres
-/// dans l'ordre. Faute de place, un agent n'est pas montré dans la salle
-/// (au lieu d'être empilé sur un autre).
-Map<String, String> assignRoomSpots(List<OfficeAgent> agents) {
-  final result = <String, String>{};
-  final free = List<String>.of(roomSpots);
-  for (final agent in agents) {
-    if (free.remove(agent.id)) {
-      result[agent.id] = agent.id;
-    }
-  }
-  for (final agent in agents) {
-    if (!result.containsKey(agent.id) && free.isNotEmpty) {
-      result[agent.id] = free.removeAt(0);
-    }
-  }
-  return result;
-}
-
-/// Pieds des agents de démonstration dans la salle détaillée.
-Offset? roomFeet(String agentId, double time) => roomSpotFeet(agentId, time);
-
 /// Étiquettes des agents, accrochées à leur personnage : elles suivent le
 /// déplacement et le zoom de la scène sans changer de taille.
 class AgentTagLayer extends StatelessWidget {

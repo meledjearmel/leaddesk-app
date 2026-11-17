@@ -339,10 +339,15 @@ class LiveOfficeController extends ChangeNotifier {
   OfficeViewMode _mode = OfficeViewMode.plateau;
   OfficeViewMode get mode => _mode;
 
+  /// Plateau ↔ salle. Sans département visité, la vue « Salle » ouvre le
+  /// premier ; le retour au plateau garde le département visité, cadré.
   void toggleMode() {
     _mode = _mode == OfficeViewMode.plateau
         ? OfficeViewMode.room
         : OfficeViewMode.plateau;
+    if (_mode == OfficeViewMode.room && focusedDepartment == null) {
+      _focusedDepartmentId = _departments.firstOrNull?.id;
+    }
     notifyListeners();
   }
 
@@ -359,13 +364,17 @@ class LiveOfficeController extends ChangeNotifier {
     return null;
   }
 
-  /// Va au bureau d'un département, sur le plateau.
+  /// Va au bureau d'un département, dans la vue en cours (plateau ou
+  /// salle). Sans département (`null`), revient à la vue d'ensemble du
+  /// plateau.
   void focusDepartment(String? id) {
     if (_editor != null) {
       return;
     }
     _focusedDepartmentId = id;
-    _mode = OfficeViewMode.plateau;
+    if (id == null) {
+      _mode = OfficeViewMode.plateau;
+    }
     notifyListeners();
   }
 

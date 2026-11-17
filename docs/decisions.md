@@ -274,7 +274,34 @@ Questions ouvertes pour Armel : qui peut proposer un aménagement (une IA dédi�
   - le pixel art ne dépasse plus 3 points par pixel ;
   - un bureau visité s'ouvre à ×2 au plus, pour voir toutes ses salles au lieu de quelques meubles géants ;
   - en dessous d'un pixel physique, l'échelle n'est plus arrondie (l'image est alors lissée).
-- **Suite** : la vue « Salle » qui représente le bureau complet d'un département est confiée à une autre session ; le prompt est dans `docs/PROMPT_VUE_SALLE.md`.
+- **Suite** : la vue « Salle » qui représente le bureau complet d'un département est confiée à une autre session ; le prompt est dans `docs/PROMPT_VUE_SALLE.md`. Réalisée : voir D-033.
+
+### D-033 · Vue « Salle » : le bureau complet d'un département, en détail
+
+- **Composition** (`DepartmentOffice`, `scene/department_office.dart`, sans dessin) :
+  - toutes les salles que le plan attribue au département, à leur place relative, les cases vides entre elles retirées ;
+  - le coin café du plan le plus proche, en annexe : c'est un lieu commun, il n'appartient à aucun département (accord d'Armel, 17 novembre 2026) ; un petit coin café s'il n'y en a pas ;
+  - un couloir de 2 cases devant les salles ;
+  - une rangée unique de plus de 16 cases passe sur deux rangées, de part et d'autre du couloir (comme sur les images 04 et 05) ; dans une rangée, les salles prennent la même profondeur, au moins 4 cases ; une disposition déjà sur plusieurs rangées est gardée.
+- **Postes** : exactement un poste de travail par poste du département (`headcount`) ; un open space s'ajoute si les salles n'y suffisent pas. Les agents s'assoient dans l'ordre de la liste ; un poste vacant reste un bureau vide, chaise rentrée, écran éteint (D-031).
+- **Déterminisme** : tous les tirages du décor partent d'une empreinte FNV-1a (`stableHash`), jamais de `String.hashCode` : la même organisation donne le même bureau, au pixel près (testé).
+- **Mobilier dense** (vue « Salle » seulement ; le plateau reste sobre) : une grille d'occupation par demi-case réserve l'emprise de chaque meuble ; l'habillage (`scene/room_dressing.dart`, `scene/decor.dart`) pose ensuite, là où il reste de la place : bibliothèques basses sous les fenêtres, cadres, horloge ou plante suspendue entre elles, bibliothèques et tableau de notes au mur de gauche, coin salon, petite table ronde ou tableau mobile dans les grands espaces, plantes dans les coins, petits objets adossés (caissons, corbeilles, cartons, sacs, portemanteau, fontaine). Café complet : placards, micro-ondes, réfrigérateur, distributeur, fontaine, tables hautes. Couloir en parquet ; façade vitrée des salles du fond.
+- **Niveaux de détail ×1, ×2, ×3** :
+  - une image de niveau L fait L fois la taille de l'art ; chaque meuble et chaque personnage ajoute les détails de ce niveau, en rectangles nets sur une grille de 1/L pixel d'art, sans lissage ;
+  - ×2 : lignes de code colorées, touches des claviers, fil du bois, dos des livres, nervures des feuilles, post-it écrits, visages (yeux, sourcils), mèches, col ;
+  - ×3 : reflets des vitres et des écrans, câbles, multiprise, post-it sur les écrans, carnets, téléphones, vapeur des tasses, expressions (sourire, concentré, inquiet), doigts, boutons ;
+  - `OfficeCamera` choisit le niveau : 1, 2, 3, 4 ou 6 pixels physiques par pixel d'art (×1, ×2, ×3, ×2 agrandi, ×3 agrandi). Un pixel du dessin ne couvre jamais plus de 2 pixels physiques ; le zoom plafonne à 6, au niveau ×3. Le plafond `maxScale = 3` de D-032 ne vaut plus que pour le plateau, qui garde un seul niveau.
+  - Seul le niveau ×1 est rendu tout de suite ; ×2 et ×3 sont préparés en arrière-plan (`toImage`) la première fois qu'on zoome assez, puis gardés en cache. En attendant, le niveau prêt reste affiché à la même taille. Tout est libéré en quittant le département ou à chaque nouveau jeu de données.
+- **Agents selon leur état** (`AgentState.seat`) :
+  - au travail : assis, code à l'écran ;
+  - attend une décision, limite de coût : debout à côté de son bureau, fenêtre ambrée à l'écran (une feuille à la main pour la limite de coût) ;
+  - bloqué : assis devant un écran rouge ;
+  - attend son ordinateur, brouillon : assis, écran en veille ;
+  - en pause, disponible : au café, tasse à la main, ou en marche dans le couloir, sur des chemins droits (café → porte → allée → une porte du couloir → retour). Ces agents sont dessinés en direct par-dessus l'image, au niveau affiché ; leur mouvement ne dépend que de leur rang et de l'heure de la scène.
+- **Étiquettes** : inchangées (D-032) ; elles suivent les agents qui marchent.
+- **Navigation** : le fil d'Ariane s'affiche aussi en vue « Salle » ; ses flèches y passent d'un département à l'autre. Sans département visité, « Vue : Salle » ouvre le premier ; « Vue : Plateau » ramène au plateau sur le même département ; « Bureau » revient à la vue d'ensemble du plateau. Un clic sur un agent ouvre sa fiche (D-029).
+- **Salle de référence** : elle n'est plus affichée (la démonstration a ses départements). Son code (`office_scene.dart`) reste pour la capture `scene.png`, les apparences de démonstration (`OfficeLooks`) et la hauteur des personnages ; à retirer plus tard avec l'accord d'Armel.
+- **Limite** : à l'ouverture, le bureau entier tient dans la carte au niveau ×1 ; il paraît petit sur une fenêtre de 1440 px. Les niveaux ×2 et ×3 se voient en zoomant.
 ## Propositions de mise à jour des documents de conception
 
 - `REGLES_METIER_LEADDESK.md` (RM-02) : ajouter qu'une entreprise vierge contient toujours les unités RH et Moyens généraux, chacune avec un poste de responsable sans agent (D-013).

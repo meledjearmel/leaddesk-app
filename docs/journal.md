@@ -186,3 +186,16 @@ Décisions : D-012, D-013. Ordre : 0 → 1 → 2 → 5 → 3 → 4 → 6. Chaque
 **Fait** : pastilles d'état pour tous les agents ; étiquettes réservées à ce qui compte, six au plus ; noms de salles seulement de près dans le bureau visité ; réglage « Essentielles / Toutes / Aucune » ; zoom plafonné à 3 points par pixel et à ×2 pour un bureau visité, après le retour du CEO (« on ne voit absolument rien ») (D-032). Prompt de la vue « Salle » écrit pour une autre session (`docs/PROMPT_VUE_SALLE.md`).
 
 **Testé** : 171 tests verts ; captures `ecran_1440`, `bureau_visite`.
+
+## Vue « Salle » : le bureau complet d'un département (17 novembre 2026)
+
+**Fait** (D-033) :
+- bureau d'un département composé à partir du plan : ses salles réunies, le coin café en annexe, un couloir, un poste par poste du département ;
+- mobilier dense et habillage sans chevauchement (grille d'occupation) ;
+- niveaux de détail ×1, ×2, ×3, préparés en arrière-plan et gardés en cache ; un pixel du dessin ne dépasse jamais 2 pixels physiques ;
+- agents selon leur état réel : assis, debout près du bureau, au café ou en marche dans le couloir ; écrans selon l'état ;
+- navigation : fil d'Ariane et flèches en vue « Salle », premier département par défaut, retour au plateau sur le même département.
+
+**Testé** : 203 tests verts (composition, déterminisme au pixel près, un poste par poste, poste vacant, places des agents, chemins continus, niveaux de détail et zoom, navigation, fiche agent). Captures `salle_technique`, `salle_produit`, `salle_direction`, `niveau_x1` à `niveau_x3`, `etats_x1`, `etats_x3`, `salle_ecran`, `salle_ecran_pres`, `salle_ecran_tres_pres`, `salle_ecran_produit`, `salle_ecran_produit_pres`.
+
+**Reste à faire** : retirer la salle de référence (`office_scene.dart`) si Armel le souhaite ; déplacements plus variés (réunions, conversations entre agents) ; niveaux de détail sur le plateau si besoin.

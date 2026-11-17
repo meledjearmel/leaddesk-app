@@ -37,6 +37,66 @@ void main() {
     c.dispose();
   });
 
+  test('vue « Salle » : premier département, flèches, retour au plateau', () {
+    final c = LiveOfficeController();
+    final ids = c.departments.map((d) => d.id).toList();
+
+    // Sans département visité, « Vue : Salle » ouvre le premier.
+    c.toggleMode();
+    expect(c.mode, OfficeViewMode.room);
+    expect(c.focusedDepartment?.id, ids.first);
+
+    // Les flèches restent dans la vue « Salle ».
+    c.stepDepartment(1);
+    expect(c.mode, OfficeViewMode.room);
+    expect(c.focusedDepartment?.id, ids[1]);
+    c.stepDepartment(-1);
+    c.stepDepartment(-1);
+    expect(c.focusedDepartment?.id, ids.last);
+    expect(c.mode, OfficeViewMode.room);
+
+    // « Vue : Plateau » ramène au plateau, sur le même département.
+    c.toggleMode();
+    expect(c.mode, OfficeViewMode.plateau);
+    expect(c.focusedDepartment?.id, ids.last);
+
+    // Un département visité est gardé en revenant à la vue « Salle ».
+    c.toggleMode();
+    expect(c.focusedDepartment?.id, ids.last);
+
+    // « Bureau » : vue d'ensemble, donc le plateau.
+    c.focusDepartment(null);
+    expect(c.mode, OfficeViewMode.plateau);
+    expect(c.focusedDepartment, isNull);
+    c.dispose();
+  });
+
+  testWidgets('vue « Salle » : un clic sur un agent ouvre sa fiche (D-029)', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(const LeadDeskApp(home: LiveOfficeScreen()));
+    await tester.pump(const Duration(milliseconds: 100));
+
+    await tester.tap(find.byTooltip('Entrer dans le bureau Technique'));
+    await tester.pump();
+    await tester.tap(find.text('Vue : Plateau'));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Vue : Salle'), findsOneWidget);
+    expect(find.text('Technique'), findsOneWidget);
+
+    // Forge travaille : assis à son poste, sa pastille est sur la scène.
+    final marker = find.bySemanticsLabel('Forge, Au travail');
+    expect(marker, findsOneWidget);
+    await tester.tap(marker);
+    await tester.pump();
+    expect(find.byTooltip('Fermer la fiche'), findsOneWidget);
+    semantics.dispose();
+  });
+
   test('chaque département a une emprise ; la caméra la cadre', () {
     final departments = studioDepartments();
     final geometry = PlanGeometry(

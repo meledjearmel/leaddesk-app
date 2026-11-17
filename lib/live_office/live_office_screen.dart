@@ -9,15 +9,17 @@ import '../api/realtime.dart';
 import '../app/theme.dart';
 import '../decisions/decisions_controller.dart';
 import '../engine/run_controller.dart';
+import '../office/office_plan.dart';
 import 'agent_sheet.dart';
 import 'live_office_controller.dart';
-import 'models.dart';
 import 'office_camera.dart';
 import 'office_source.dart';
+import 'scene/department_office.dart';
 import 'scene/iso.dart';
 import 'scene/office_scene.dart';
 import 'scene/pixel_people.dart';
 import 'scene/plan_scene.dart';
+import 'scene/presence.dart';
 import 'widgets/agent_panel.dart';
 import 'widgets/agent_sheet_panel.dart';
 import 'widgets/common.dart';
@@ -115,18 +117,114 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
   /// Pieds des agents sur le plateau : chacun à un poste de son département.
   late Map<String, Offset> _plateauFeet = _buildFeet();
 
-  /// Places de la salle détaillée : celles du bureau visité d'abord.
-  late Map<String, String> _roomSpots = _buildRoomSpots();
+  /// Département montré en vue « Salle » : celui qu'on visite, sinon le
+  /// premier.
+  OfficeDepartment? get _roomDepartment =>
+      _controller.focusedDepartment ?? _controller.departments.firstOrNull;
 
-  Map<String, String> _buildRoomSpots() {
-    final focus = _controller.focusedDepartment?.id;
-    final agents = focus == null
-        ? _controller.agents
-        : <OfficeAgent>[
-            ..._controller.agentsOf(focus),
-            ..._controller.agents.where((a) => a.departmentId != focus),
-          ];
-    return assignRoomSpots(agents);
+  /// Bureau complet du département montré en vue « Salle ».
+  DepartmentOffice? _office;
+  String? _officeDepartmentId;
+
+  /// Pieds des agents qui restent à leur poste (assis ou debout), dans le
+  /// bureau du département montré.
+  Map<String, Offset> _roomFeet = const <String, Offset>{};
+
+  /// Agents partis de leur poste (café, couloir) : rang de chacun et son
+  /// apparence, dans l'ordre de la liste.
+  Map<String, int> _awaySlots = const <String, int>{};
+  List<(String, PersonLook)> _awayLooks = const <(String, PersonLook)>[];
+
+  DepartmentOffice? get _currentOffice {
+    final department = _roomDepartment;
+    if (department == null) {
+      return null;
+    }
+    if (_office == null || _officeDepartmentId != department.id) {
+      final office = DepartmentOffice.compose(_controller.plan, department);
+      final desks = office.desks;
+      final looks = _occupants()[department.id] ?? const <PersonLook>[];
+      final feet = <String, Offset>{};
+      final slots = <String, int>{};
+      final away = <(String, PersonLook)>[];
+      for (final (i, agent) in _controller.agentsOf(department.id).indexed) {
+        if (i >= desks.length) {
+          break;
+        }
+        final seat = agent.state.seat;
+        switch (seat.presence) {
+          case SeatPresence.seated:
+            feet[agent.id] =
+                office.geometry.toImage(desks[i].x, desks[i].y) +
+                const Offset(0, -8);
+          case SeatPresence.standing:
+            final spot = office.standingSpot(i);
+            feet[agent.id] = office.geometry.toImage(spot.dx, spot.dy);
+          case SeatPresence.away:
+            slots[agent.id] = away.length;
+            away.add((agent.id, looks[i]));
+        }
+      }
+      _office = office;
+      _officeDepartmentId = department.id;
+      _roomFeet = feet;
+      _awaySlots = slots;
+      _awayLooks = away;
+    }
+    return _office;
+  }
+
+  /// Pieds, en pixels d'art, d'un agent parti de son poste.
+  Offset? _awayFeet(String agentId, double time) {
+    final office = _office;
+    final slot = _awaySlots[agentId];
+    if (office == null || slot == null) {
+      return null;
+    }
+    final pose = office.awayPose(slot, time);
+    return office.geometry.toImage(pose.at.dx, pose.at.dy);
+  }
+
+  /// Dessine en direct les agents partis de leur poste : au café, tasse en
+  /// main, ou en marche dans le couloir.
+  void _drawAway(Canvas canvas, double time, int level) {
+    final office = _office;
+    if (office == null) {
+      return;
+    }
+    // Du fond vers l'avant, pour qu'ils se recouvrent correctement.
+    final poses =
+        <(WalkPose, PersonLook)>[
+          for (final (i, (_, look)) in _awayLooks.indexed)
+            (office.awayPose(i, time), look),
+        ]..sort(
+          (a, b) =>
+              (a.$1.at.dx + a.$1.at.dy).compareTo(b.$1.at.dx + b.$1.at.dy),
+        );
+    for (final (pose, look) in poses) {
+      drawPerson(
+        canvas,
+        office.geometry.toImage(pose.at.dx, pose.at.dy),
+        look,
+        pose: pose.walking ? PersonPose.walk : PersonPose.stand,
+        faceLeft: pose.faceLeft,
+        step: pose.step,
+        mug: pose.atCafe,
+        lod: level,
+        mood: PersonMood.happy,
+      );
+    }
+  }
+
+  /// Oublie le bureau composé et libère ses images.
+  void _dropOffice() {
+    _office = null;
+    _officeDepartmentId = null;
+    _roomFeet = const <String, Offset>{};
+    _awaySlots = const <String, int>{};
+    _awayLooks = const <(String, PersonLook)>[];
+    _roomFrames?.dispose();
+    _roomFrames = null;
   }
 
   Map<String, Offset> _buildFeet() => <String, Offset>{
@@ -138,9 +236,28 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
               _geometry.toImage(seats[i].x, seats[i].y) + const Offset(0, -8),
   };
 
-  OfficeFrames get _frames => _controller.mode == OfficeViewMode.plateau
-      ? (_plateauFrames ??= OfficeFrames.plateau(_geometry, _occupants()))
-      : (_roomFrames ??= OfficeFrames.detailed());
+  OfficeFrames get _frames {
+    final office = _controller.mode == OfficeViewMode.room
+        ? _currentOffice
+        : null;
+    if (office == null) {
+      return _plateauFrames ??= OfficeFrames.plateau(_geometry, _occupants());
+    }
+    final id = office.department.id;
+    return _roomFrames ??= OfficeFrames.plateau(
+      office.geometry,
+      <String, List<PersonLook>>{id: _occupants()[id] ?? const <PersonLook>[]},
+      // Chaque agent selon son état réel ; les collègues de démonstration
+      // travaillent.
+      seatStates: <String, List<SeatState>>{
+        id: <SeatState>[
+          for (final agent in _controller.agentsOf(id)) agent.state.seat,
+        ],
+      },
+      dense: true,
+      levels: 3,
+    );
+  }
 
   /// Personnes assises : les agents de chaque département d'abord, puis des
   /// collègues jusqu'à l'effectif ; les postes restants sont vacants.
@@ -242,7 +359,11 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
     final mode = _controller.mode;
     final revision = _controller.revision;
     final focus = _controller.focusedDepartment?.id;
-    if (mode == _shownMode && revision == _shownRevision) {
+    final plateau = mode == OfficeViewMode.plateau;
+    final roomId = plateau ? null : _roomDepartment?.id;
+    if (mode == _shownMode &&
+        revision == _shownRevision &&
+        roomId == _shownRoom) {
       if (focus != _shownFocus) {
         _frameFocus();
       }
@@ -252,17 +373,26 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
       _shownRevision = revision;
       _geometry = _buildGeometry();
       _plateauFeet = _buildFeet();
-      _roomSpots = _buildRoomSpots();
       _plateauFrames?.dispose();
       _plateauFrames = null;
+      _dropOffice();
+    }
+    if (roomId != _officeDepartmentId) {
+      // On quitte un département (ou la vue « Salle ») : ses images sont
+      // libérées.
+      _dropOffice();
     }
     _shownMode = mode;
-    final plateau = mode == OfficeViewMode.plateau;
-    final size = _frames.size;
+    _shownRoom = roomId;
+    final frames = _frames;
+    final size = frames.size;
     _camera.setScene(
+      levels: frames.levels,
       size,
-      focus: plateau ? size.center(Offset.zero) : OfficeLayout.focus,
-      contain: plateau,
+      focus: size.center(Offset.zero),
+      // Le bureau d'un département s'ouvre en entier, cadré comme sur les
+      // images de référence.
+      contain: true,
       // Le plateau s'ouvre à mi-distance : lisible, le reste se parcourt.
       initialZoom: plateau ? 1.6 : 1,
     );
@@ -273,12 +403,12 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
   }
 
   String? _shownFocus;
+  String? _shownRoom;
 
   /// Cadre le bureau du département visité, ou revient à la vue d'ensemble.
   void _frameFocus() {
     final focus = _controller.focusedDepartment?.id;
     _shownFocus = focus;
-    _roomSpots = _buildRoomSpots();
     if (_controller.mode != OfficeViewMode.plateau) {
       return;
     }
@@ -332,8 +462,10 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
     if (_controller.mode == OfficeViewMode.plateau) {
       return _plateauFeet[agentId];
     }
-    final spot = _roomSpots[agentId];
-    return spot == null ? null : roomSpotFeet(spot, time);
+    if (_currentOffice == null) {
+      return null;
+    }
+    return _roomFeet[agentId] ?? _awayFeet(agentId, time);
   }
 
   @override
@@ -516,6 +648,9 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                     controller: _controller,
                     camera: _camera,
                     frames: _frames,
+                    overlay: _controller.mode == OfficeViewMode.room
+                        ? _drawAway
+                        : null,
                   ),
                 if (!_controller.editing &&
                     _controller.mode == OfficeViewMode.plateau)
@@ -527,8 +662,9 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                     focusedId: _controller.focusedDepartment?.id,
                     tagMode: _controller.tagMode,
                   ),
-                if (!_controller.editing &&
-                    _controller.mode == OfficeViewMode.plateau)
+                // Fil d'Ariane sur le plateau comme dans la vue « Salle » :
+                // ses flèches passent d'un bureau à l'autre dans les deux.
+                if (!_controller.editing)
                   Positioned(
                     left: 12,
                     top: 64,

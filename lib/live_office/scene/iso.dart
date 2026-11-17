@@ -4,6 +4,18 @@ import 'dart:ui';
 const double sceneWidth = 512;
 const double sceneHeight = 384;
 
+/// Empreinte stable d'un texte (FNV-1a, 32 bits) : la même d'un lancement,
+/// d'une plateforme et d'une version de Dart à l'autre, contrairement à
+/// `String.hashCode`. Elle sème les tirages du décor : la même organisation
+/// donne toujours le même bureau.
+int stableHash(String text) {
+  var hash = 0x811c9dc5;
+  for (final unit in text.codeUnits) {
+    hash = ((hash ^ unit) * 0x01000193) & 0xFFFFFFFF;
+  }
+  return hash;
+}
+
 /// Assombrit (`factor` < 1) ou éclaircit (`factor` > 1) une couleur opaque.
 Color shade(Color color, double factor) {
   int channel(double value) => (value * 255 * factor).round().clamp(0, 255);

@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 
+import 'scene/pixel_people.dart';
+import 'scene/presence.dart';
+
+export 'scene/presence.dart' show SeatPresence, SeatState;
+
 /// Fournisseur du modèle d'un agent, représenté par un pictogramme générique
 /// (aucun logo de marque n'est repris).
 enum AgentProvider {
@@ -73,6 +78,37 @@ enum AgentState {
   /// Vrai quand le CEO doit regarder : l'étiquette passe devant.
   bool get needsAttention =>
       this == waitingDecision || this == pausedCost || this == blocked;
+
+  /// Ce que le bureau montre de cet état (vue « Salle ») :
+  /// - au travail : assis, code à l'écran ;
+  /// - attend une décision ou limite de coût : debout près du bureau ;
+  /// - en pause ou disponible : au café ou dans le couloir ;
+  /// - bloqué : assis devant un écran rouge ;
+  /// - attend son ordinateur, brouillon : assis, écran en veille.
+  SeatState get seat => switch (this) {
+    working => const SeatState(mood: PersonMood.focused),
+    waitingDecision => const SeatState(
+      presence: SeatPresence.standing,
+      screen: ScreenMode.waiting,
+      mood: PersonMood.worried,
+    ),
+    pausedCost => const SeatState(
+      presence: SeatPresence.standing,
+      screen: ScreenMode.waiting,
+      mood: PersonMood.worried,
+      holdsPaper: true,
+    ),
+    paused || idle => const SeatState(
+      presence: SeatPresence.away,
+      screen: ScreenMode.standby,
+      mood: PersonMood.happy,
+    ),
+    blocked => const SeatState(
+      screen: ScreenMode.error,
+      mood: PersonMood.worried,
+    ),
+    waitingHost || draft => const SeatState(screen: ScreenMode.standby),
+  };
 }
 
 /// Agent affiché dans le bureau vivant.

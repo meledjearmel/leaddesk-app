@@ -5,9 +5,13 @@ import 'package:flutter/painting.dart';
 
 import '../../office/office_plan.dart';
 import '../../office/room_catalog.dart';
+import 'decor.dart';
 import 'furniture.dart';
 import 'iso.dart';
 import 'pixel_people.dart';
+import 'presence.dart';
+
+part 'room_dressing.dart';
 
 /// Hauteur des murs extérieurs et des cloisons, en pixels d'art.
 const double _wallHeight = 74;
@@ -39,10 +43,16 @@ class RoomTag {
 /// Calculée sans rien dessiner : la vue s'en sert pour poser les étiquettes
 /// au bon endroit et la minicarte pour placer les agents.
 class PlanGeometry {
-  PlanGeometry(this.plan, List<OfficeDepartment> departments)
-    : _departments = <String, OfficeDepartment>{
-        for (final department in departments) department.id: department,
-      } {
+  PlanGeometry(
+    this.plan,
+    List<OfficeDepartment> departments, {
+    Map<String, int>? seatLimits,
+  }) : _seatLimits = seatLimits == null
+           ? null
+           : Map<String, int>.unmodifiable(seatLimits),
+       _departments = <String, OfficeDepartment>{
+         for (final department in departments) department.id: department,
+       } {
     final span = (plan.cols + plan.rows).toDouble();
     size = ui.Size(
       span * Iso.halfTileWidth + 2 * _margin,
@@ -58,6 +68,24 @@ class PlanGeometry {
 
   final OfficePlan plan;
   final Map<String, OfficeDepartment> _departments;
+
+  /// Nombre de postes installés par salle, quand il est imposé (vue d'un
+  /// département : un poste par poste de l'organisation). Sans limite, une
+  /// salle de travail est meublée à sa capacité.
+  final Map<String, int>? _seatLimits;
+
+  /// Vrai si le nombre de postes de [room] est imposé.
+  bool isLimited(PlacedRoom room) => _seatLimits?.containsKey(room.id) ?? false;
+
+  /// Postes installés dans une salle, dans l'ordre de remplissage.
+  List<Seat> seatsOf(PlacedRoom room) {
+    final all = seatsIn(room);
+    final limit = _seatLimits?[room.id];
+    return limit == null || limit >= all.length
+        ? all
+        : all.sublist(0, max(0, limit));
+  }
+
   late final ui.Size size;
 
   /// Décalage à appliquer aux coordonnées de [Iso.pt].
@@ -77,7 +105,7 @@ class PlanGeometry {
     for (final room in plan.rooms) {
       final department = room.departmentId;
       if (department != null) {
-        result.putIfAbsent(department, () => <Seat>[]).addAll(seatsIn(room));
+        result.putIfAbsent(department, () => <Seat>[]).addAll(seatsOf(room));
       }
     }
     return result;
@@ -133,25 +161,99 @@ class PlanGeometry {
   }
 }
 
+/// Centre de la table haute d'un coin café, en coordonnées de la grille.
+Offset cafeTableOf(PlacedRoom room) => Offset(
+  (room.x + room.right) / 2 - 0.2,
+  room.y + 1.9 + max(0, (room.rows - 4) / 2),
+);
+
+/// Où se tient l'agent d'un poste quand il attend le CEO : debout à droite
+/// de sa chaise, en coordonnées de la grille.
+Offset standingSpotOf(Seat seat) => Offset(seat.x + 0.72, seat.y - 0.05);
+
 /// Rend une image d'ambiance d'un plan d'aménagement.
 ///
 /// [occupants] donne, pour chaque département, l'apparence des personnes
 /// assises dans l'ordre des postes ; les postes restants sont vacants.
+///
+/// [lod] : niveau de détail (1, 2 ou 3). L'image fait [lod] fois la taille
+/// de l'art et chaque meuble y ajoute les détails de ce niveau.
 ui.Image renderPlanFrame(
   PlanGeometry geometry, {
   Map<String, List<PersonLook>> occupants = const <String, List<PersonLook>>{},
+  Map<String, List<SeatState>> seatStates = const <String, List<SeatState>>{},
   int frame = 0,
+  bool dense = false,
+  int lod = 1,
 }) {
-  final recorder = ui.PictureRecorder();
-  final canvas = ui.Canvas(recorder, Offset.zero & geometry.size);
-  PlanScenePainter(canvas, frame, geometry, occupants).paint();
-  final picture = recorder.endRecording();
+  final picture = recordPlanFrame(
+    geometry,
+    occupants: occupants,
+    seatStates: seatStates,
+    frame: frame,
+    dense: dense,
+    lod: lod,
+  );
   final image = picture.toImageSync(
-    geometry.size.width.ceil(),
-    geometry.size.height.ceil(),
+    (geometry.size.width * lod).ceil(),
+    (geometry.size.height * lod).ceil(),
   );
   picture.dispose();
   return image;
+}
+
+/// Même rendu que [renderPlanFrame], rastérisé hors du fil de l'interface :
+/// sert aux niveaux fins, préparés en arrière-plan.
+Future<ui.Image> renderPlanFrameAsync(
+  PlanGeometry geometry, {
+  Map<String, List<PersonLook>> occupants = const <String, List<PersonLook>>{},
+  Map<String, List<SeatState>> seatStates = const <String, List<SeatState>>{},
+  int frame = 0,
+  bool dense = false,
+  int lod = 1,
+}) async {
+  final picture = recordPlanFrame(
+    geometry,
+    occupants: occupants,
+    seatStates: seatStates,
+    frame: frame,
+    dense: dense,
+    lod: lod,
+  );
+  try {
+    return await picture.toImage(
+      (geometry.size.width * lod).ceil(),
+      (geometry.size.height * lod).ceil(),
+    );
+  } finally {
+    picture.dispose();
+  }
+}
+
+/// Enregistre le dessin d'un plan au niveau [lod], sans le rastériser.
+ui.Picture recordPlanFrame(
+  PlanGeometry geometry, {
+  Map<String, List<PersonLook>> occupants = const <String, List<PersonLook>>{},
+  Map<String, List<SeatState>> seatStates = const <String, List<SeatState>>{},
+  int frame = 0,
+  bool dense = false,
+  int lod = 1,
+}) {
+  final recorder = ui.PictureRecorder();
+  final canvas = ui.Canvas(
+    recorder,
+    Offset.zero & (geometry.size * lod.toDouble()),
+  )..scale(lod.toDouble());
+  PlanScenePainter(
+    canvas,
+    frame,
+    geometry,
+    occupants,
+    seatStates: seatStates,
+    dense: dense,
+    lod: lod,
+  ).paint();
+  return recorder.endRecording();
 }
 
 class _Item {
@@ -165,9 +267,24 @@ class _Item {
 /// Dessine un plan : sols, murs, cloisons vitrées entre les salles, mobilier
 /// propre à chaque type de salle, personnes à leur poste, lumières.
 class PlanScenePainter extends FurnitureKit {
-  PlanScenePainter(super.canvas, super.frame, this.geometry, this.occupants);
+  PlanScenePainter(
+    super.canvas,
+    super.frame,
+    this.geometry,
+    this.occupants, {
+    this.seatStates = const <String, List<SeatState>>{},
+    this.dense = false,
+    super.lod,
+  });
 
   final PlanGeometry geometry;
+
+  /// État de chaque poste occupé, dans l'ordre de [occupants] ; sans état,
+  /// la personne est assise et travaille.
+  final Map<String, List<SeatState>> seatStates;
+
+  /// Mobilier dense et habillage (vue « Salle ») ; le plateau reste sobre.
+  final bool dense;
   final Map<String, List<PersonLook>> occupants;
   final List<_Item> _items = <_Item>[];
 
@@ -186,7 +303,11 @@ class PlanScenePainter extends FurnitureKit {
     _outerWalls();
     for (final room in plan.rooms) {
       _partitions(room);
-      _furnish(room);
+      if (dense) {
+        _furnishDense(room);
+      } else {
+        _furnish(room);
+      }
     }
     _people();
     _items.sort((a, b) {
@@ -207,6 +328,21 @@ class PlanScenePainter extends FurnitureKit {
   // ------------------------------------------------------------ sols, murs
 
   void _corridor() {
+    if (dense) {
+      // Bureau d'un département : parquet chaud entre les salles (image 05).
+      _planks(
+        PlacedRoom(
+          id: 'couloir',
+          typeId: 'open_space',
+          x: 0,
+          y: 0,
+          cols: plan.cols,
+          rows: plan.rows,
+        ),
+        Random(stableHash('couloir')),
+      );
+      return;
+    }
     for (var x = 0; x < plan.cols; x++) {
       for (var y = 0; y < plan.rows; y++) {
         g.floor(
@@ -226,7 +362,7 @@ class PlanScenePainter extends FurnitureKit {
     final y0 = room.y.toDouble();
     final x1 = room.right.toDouble();
     final y1 = room.bottom.toDouble();
-    final random = Random(room.id.hashCode);
+    final random = Random(stableHash(room.id));
 
     switch (look) {
       case RoomLook.cafe ||
@@ -331,7 +467,29 @@ class PlanScenePainter extends FurnitureKit {
         final length = 2.0 + random.nextInt(3);
         final from = max(x, room.x.toDouble());
         final to = min(x + length, room.right.toDouble());
-        g.floor(from, y, to, y + 0.5, planks[random.nextInt(planks.length)]);
+        final plank = planks[random.nextInt(planks.length)];
+        g.floor(from, y, to, y + 0.5, plank);
+        if (lod >= 2) {
+          // Fil du bois : une ou deux veines fines par lame.
+          final thick = px / Iso.halfTileHeight;
+          final veins = 1 + (from * 7 + y * 3).round() % 2;
+          for (var v = 0; v < veins; v++) {
+            final vy = y + 0.12 + v * 0.22;
+            final vx0 = from + (to - from) * (0.1 + 0.2 * v);
+            g.floor(vx0, vy, to - 0.15, vy + thick, shade(plank, 0.86));
+          }
+          if (lod >= 3) {
+            // Nœud du bois.
+            final kx = from + (to - from) * 0.6;
+            g.floor(
+              kx,
+              y + 0.2,
+              kx + 0.08,
+              y + 0.2 + 2 * thick,
+              shade(plank, 0.75),
+            );
+          }
+        }
         if (x + length < room.right) {
           g.floor(to - 0.07, y, to, y + 0.5, seam);
         }
@@ -399,6 +557,7 @@ class PlanScenePainter extends FurnitureKit {
         _add(x + 0.5 + y - 0.01, () {
           if (i != door) {
             g.wallX(x, x + 1, y, 3, _partitionHeight, glass);
+            _glare(x, y, alongX: true);
           }
           g
             ..wallX(x, x + 1, y, 0, 3, frame)
@@ -415,11 +574,31 @@ class PlanScenePainter extends FurnitureKit {
         _add(x + y + 0.5 - 0.01, () {
           if (i != rowDoor) {
             g.wallY(y, y + 1, x, 3, _partitionHeight, glass);
+            _glare(x, y, alongX: false);
           }
           g
             ..wallY(y, y + 1, x, 0, 3, frame)
             ..wallY(y - 0.05, y + 0.05, x, 0, _partitionHeight, frame)
             ..wallY(y, y + 1, x, _partitionHeight - 2, _partitionHeight, trim);
+        });
+      }
+    }
+    // Vue d'un département : les salles du fond ont aussi leur façade
+    // vitrée sur le couloir (on voit l'intérieur à travers).
+    final facing = plan.rooms.any((other) => other.y >= room.bottom);
+    if (dense && facing) {
+      for (var i = 0; i < room.cols; i++) {
+        final x = (room.x + i).toDouble();
+        final y = room.bottom.toDouble();
+        _add(x + 0.5 + y - 0.01, () {
+          if (i != door) {
+            g.wallX(x, x + 1, y, 3, _partitionHeight, glass);
+            _glare(x, y, alongX: true);
+          }
+          g
+            ..wallX(x, x + 1, y, 0, 3, frame)
+            ..wallX(x - 0.05, x + 0.05, y, 0, _partitionHeight, frame)
+            ..wallX(x, x + 1, y, _partitionHeight - 2, _partitionHeight, trim);
         });
       }
     }
@@ -540,15 +719,20 @@ class PlanScenePainter extends FurnitureKit {
           glows.add(Glow(Iso.pt(cx, cy, 20), 70, const Color(0x26F25C4C)));
         }
       case RoomLook.phoneBooth:
-        final occupant = (room.id.hashCode).isEven;
+        final occupant = stableHash(room.id).isEven;
         _add(
           x0 + y0 + 1.7,
           () => booth(
             x0 + 0.2,
             y0 + 0.2,
             occupant: occupant
-                ? (feet) =>
-                      drawPerson(canvas, feet, _guest(room.x), raiseArm: true)
+                ? (feet) => drawPerson(
+                    canvas,
+                    feet,
+                    _guest(room.x),
+                    raiseArm: true,
+                    lod: lod,
+                  )
                 : null,
           ),
         );
@@ -706,6 +890,7 @@ class PlanScenePainter extends FurnitureKit {
             Iso.pt(cx, cy - 0.9, 8),
             _guest(7),
             pose: PersonPose.seated,
+            lod: lod,
           );
         });
         _add(
@@ -766,45 +951,130 @@ class PlanScenePainter extends FurnitureKit {
   /// Bureaux en rangées : un plan de travail par rangée de deux cases,
   /// un écran et un fauteuil par poste.
   void _desks(PlacedRoom room) {
-    final seats = PlanGeometry.seatsIn(room);
-    final x0 = room.x.toDouble();
-    final x1 = room.right.toDouble();
-    for (var pair = 0; pair < room.rows ~/ 2; pair++) {
-      final top = room.y + pair * 2 + 0.2;
-      final rowSeats = seats
-          .where((s) => (s.y - top - 1.55).abs() < 0.01)
-          .toList();
+    for (final row in _deskRows(room)) {
+      final (top, x0, x1, rowSeats) = row;
       // Profondeur du coin gauche : les postes, devant, passent après.
       _add(x0 + top + 1.1, () {
         desk(x0 + 0.3, top, x1 - 0.3, top + 1.05);
         for (final seat in rowSeats) {
-          monitor(seat.x, top + 0.35, w: 1.2, seed: seat.x.toInt());
+          monitor(
+            seat.x,
+            top + 0.35,
+            w: dense ? 1.0 : 1.2,
+            seed: seat.x.toInt(),
+            screen: _screenOf(seat),
+          );
           keyboard(seat.x, top + 0.8);
         }
-        if (room.type.look != RoomLook.workDesks) {
+        if (dense) {
+          _deskClutter(room, row);
+        } else if (room.type.look != RoomLook.workDesks) {
           deskLamp(Iso.pt(x0 + 0.8, top + 0.4, 22));
         }
       });
     }
   }
 
+  /// Rangées de bureaux d'une salle : haut du plan de travail, étendue en
+  /// x et postes installés.
+  List<(double, double, double, List<Seat>)> _deskRows(PlacedRoom room) {
+    final seats = geometry.seatsOf(room);
+    final limited = geometry.isLimited(room);
+    return <(double, double, double, List<Seat>)>[
+      for (var pair = 0; pair < room.rows ~/ 2; pair++)
+        if (seats
+                .where((s) => (s.y - (room.y + pair * 2 + 1.75)).abs() < 0.01)
+                .toList()
+            case final rowSeats
+            // Postes imposés : le plan de travail ne couvre que les postes
+            // installés ; une rangée sans poste reste libre.
+            when !limited || rowSeats.isNotEmpty)
+          () {
+            final span = room.cols / room.type.seatsPerRow / 2;
+            return (
+              room.y + pair * 2 + 0.2,
+              limited ? rowSeats.first.x - span : room.x.toDouble(),
+              limited ? rowSeats.last.x + span : room.right.toDouble(),
+              rowSeats,
+            );
+          }(),
+    ];
+  }
+
   // ----------------------------------------------------------- personnes
 
+  /// Occupant d'un poste et son état ; `(null, …)` pour un poste vacant.
+  (PersonLook?, SeatState) _occupantOf(Seat seat) {
+    final (department, i) = _seatIndex[(seat.x, seat.y)] ?? ('', -1);
+    final looks = occupants[department] ?? const <PersonLook>[];
+    final states = seatStates[department] ?? const <SeatState>[];
+    final look = i >= 0 && i < looks.length ? looks[i] : null;
+    final state = i >= 0 && i < states.length ? states[i] : const SeatState();
+    return (look, state);
+  }
+
+  /// Département et rang de chaque poste, par position.
+  late final Map<(double, double), (String, int)> _seatIndex =
+      <(double, double), (String, int)>{
+        for (final entry in geometry.seats.entries)
+          for (final (i, seat) in entry.value.indexed)
+            (seat.x, seat.y): (entry.key, i),
+      };
+
+  /// Écran d'un poste : éteint s'il est vacant, sinon selon l'état.
+  ScreenMode _screenOf(Seat seat) {
+    final (look, state) = _occupantOf(seat);
+    return seatViewOf(occupied: look != null, state: state).$2;
+  }
+
   void _people() {
-    for (final entry in geometry.seats.entries) {
-      final looks = occupants[entry.key] ?? const <PersonLook>[];
-      for (var i = 0; i < entry.value.length; i++) {
-        final seat = entry.value[i];
-        final look = i < looks.length ? looks[i] : null;
-        _add(seat.x + seat.y, () => _seat(seat, look));
+    for (final seats in geometry.seats.values) {
+      for (final seat in seats) {
+        final (look, state) = _occupantOf(seat);
+        final (chairAt, _, person) = seatViewOf(
+          occupied: look != null,
+          state: state,
+        );
+        _add(seat.x + seat.y, () => _seat(seat, look, state, chairAt));
+        if (look != null && person == SeatPresence.standing) {
+          final spot = standingSpotOf(seat);
+          _add(spot.dx + spot.dy, () {
+            drawPerson(
+              canvas,
+              Iso.pt(spot.dx, spot.dy),
+              look,
+              faceLeft: true,
+              lod: lod,
+              mood: state.mood,
+              raiseArm: !state.holdsPaper && frame.isEven,
+              paper: state.holdsPaper,
+            );
+          });
+        }
       }
     }
   }
 
-  /// Fauteuil d'un poste, vu de dos ; vide si le poste est vacant.
-  void _seat(Seat seat, PersonLook? look) {
+  /// Fauteuil d'un poste, vu de dos : vide et rentré si le poste est
+  /// vacant, vide et reculé si son agent est debout ou parti.
+  void _seat(
+    Seat seat,
+    PersonLook? look,
+    SeatState state,
+    ChairPosition chairAt,
+  ) {
+    switch (chairAt) {
+      case ChairPosition.tucked:
+        // Poste vacant : bureau vide, chaise rentrée sous le plan de travail.
+        chair(seat.x, seat.y - 0.3, back: 3, color: Tone.chairDark);
+        return;
+      case ChairPosition.pulledOut:
+        chair(seat.x + 0.1, seat.y + 0.15, back: 3, color: Tone.chairDark);
+        return;
+      case ChairPosition.occupied:
+        break;
+    }
     if (look == null) {
-      chair(seat.x, seat.y, back: 3, color: Tone.chairDark);
       return;
     }
     final at = Iso.pt(seat.x, seat.y);
@@ -826,8 +1096,16 @@ class PlanScenePainter extends FurnitureKit {
       at + const Offset(0, -8),
       look,
       pose: PersonPose.seated,
+      lod: lod,
       back: true,
-      raiseArm: (frame + seat.x.toInt()).isEven,
+      mood: state.mood,
+      // On tape au clavier quand on travaille ; devant une erreur, on se
+      // gratte la tête.
+      raiseArm: switch (state.screen) {
+        ScreenMode.code => (frame + seat.x.toInt()).isEven,
+        ScreenMode.error => true,
+        _ => false,
+      },
     );
     final rest = Iso.pt(seat.x, seat.y + 0.5, 12);
     g

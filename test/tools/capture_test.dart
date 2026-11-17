@@ -29,6 +29,8 @@ import 'package:leaddesk_app/engine/host.dart';
 import 'package:leaddesk_app/engine/run_controller.dart';
 import 'package:leaddesk_app/engine/run_journal.dart';
 import 'package:leaddesk_app/live_office/live_office_screen.dart';
+import 'package:leaddesk_app/live_office/models.dart';
+import 'package:leaddesk_app/live_office/scene/department_office.dart';
 import 'package:leaddesk_app/live_office/scene/office_scene.dart';
 import 'package:leaddesk_app/live_office/scene/pixel_people.dart';
 import 'package:leaddesk_app/live_office/scene/plan_scene.dart';
@@ -60,6 +62,22 @@ Future<void> _writePng(ui.Image image, String path) async {
   File(path)
     ..createSync(recursive: true)
     ..writeAsBytesSync(data!.buffer.asUint8List());
+}
+
+/// Agrandit une image d'un facteur entier, sans lissage.
+ui.Image _upscale(ui.Image image, int factor) {
+  final recorder = ui.PictureRecorder();
+  Canvas(recorder)
+    ..scale(factor.toDouble())
+    ..drawImage(
+      image,
+      Offset.zero,
+      Paint()..filterQuality = FilterQuality.none,
+    );
+  final picture = recorder.endRecording();
+  final big = picture.toImageSync(image.width * factor, image.height * factor);
+  picture.dispose();
+  return big;
 }
 
 void main() {
@@ -109,6 +127,286 @@ void main() {
       },
     );
   }
+
+  // Vue « Salle » : le bureau complet d'un département, image d'art seule.
+  for (final id in const <String>['technique', 'produit', 'direction']) {
+    testWidgets('capture la salle $id', skip: skip, (tester) async {
+      await tester.runAsync(() async {
+        final departments = studioDepartments(headcount: 4);
+        final plan = const OfficePlanner().plan(departments);
+        final department = departments.firstWhere((d) => d.id == id);
+        final office = DepartmentOffice.compose(plan, department);
+        final image = renderPlanFrame(
+          office.geometry,
+          dense: true,
+          occupants: <String, List<PersonLook>>{
+            id: <PersonLook>[
+              for (var i = 0; i < department.headcount - 1; i++)
+                PersonLook(
+                  skin: const <Color>[
+                    Color(0xFFEBC29A),
+                    Color(0xFFA9714B),
+                    Color(0xFFD9A47A),
+                  ][i % 3],
+                  hair: const Color(0xFF2B1F1C),
+                  top: Color(department.color),
+                ),
+            ],
+          },
+        );
+        await _writePng(image, '$dir/salle_$id.png');
+        // Même image agrandie trois fois sans lissage, pour juger du détail.
+        final big = _upscale(image, 3);
+        await _writePng(big, '$dir/salle_${id}_zoom.png');
+        big.dispose();
+        image.dispose();
+      });
+    });
+  }
+
+  // Niveaux de détail : le même coin du bureau Technique aux niveaux ×1, ×2
+  // et ×3, affiché à la même taille (6 pixels par pixel d'art), puis le
+  // bureau entier au niveau ×3.
+  testWidgets('capture les niveaux de détail', skip: skip, (tester) async {
+    await tester.runAsync(() async {
+      final departments = studioDepartments(headcount: 4);
+      final plan = const OfficePlanner().plan(departments);
+      final department = departments.firstWhere((d) => d.id == 'technique');
+      final office = DepartmentOffice.compose(plan, department);
+      final looks = <String, List<PersonLook>>{
+        department.id: <PersonLook>[
+          for (var i = 0; i < department.headcount - 1; i++)
+            PersonLook(
+              skin: const <Color>[
+                Color(0xFFEBC29A),
+                Color(0xFFA9714B),
+                Color(0xFFD9A47A),
+              ][i % 3],
+              hair: const <Color>[
+                Color(0xFF2B1F1C),
+                Color(0xFF7A3A22),
+                Color(0xFF4A2E1E),
+              ][i % 3],
+              top: Color(department.color),
+              glasses: i == 1,
+            ),
+        ],
+      };
+      final seat = office.desks[1];
+      final focus = office.geometry.toImage(seat.x, seat.y);
+      final crop = Rect.fromCenter(
+        center: focus + const Offset(0, -12),
+        width: 180,
+        height: 120,
+      );
+      for (var lod = 1; lod <= 3; lod++) {
+        final image = renderPlanFrame(
+          office.geometry,
+          occupants: looks,
+          dense: true,
+          lod: lod,
+        );
+        final recorder = ui.PictureRecorder();
+        final factor = 6 / lod;
+        Canvas(recorder)
+          ..scale(factor)
+          ..drawImageRect(
+            image,
+            Rect.fromLTWH(
+              crop.left * lod,
+              crop.top * lod,
+              crop.width * lod,
+              crop.height * lod,
+            ),
+            Rect.fromLTWH(0, 0, crop.width * lod, crop.height * lod),
+            Paint()..filterQuality = FilterQuality.none,
+          );
+        final picture = recorder.endRecording();
+        final out = picture.toImageSync(
+          (crop.width * 6).round(),
+          (crop.height * 6).round(),
+        );
+        picture.dispose();
+        await _writePng(out, '$dir/niveau_x$lod.png');
+        out.dispose();
+        if (lod == 3) {
+          await _writePng(image, '$dir/salle_technique_x3.png');
+        }
+        image.dispose();
+      }
+    });
+  });
+
+  // Agents selon leur état réel : assis au travail, debout (décision,
+  // limite de coût), bloqué, en veille, au café ou en marche, poste vacant.
+  testWidgets('capture les agents selon leur état', skip: skip, (tester) async {
+    await tester.runAsync(() async {
+      final departments = studioDepartments(headcount: 6);
+      final plan = const OfficePlanner().plan(departments);
+      final department = departments.firstWhere((d) => d.id == 'technique');
+      final office = DepartmentOffice.compose(plan, department);
+      const states = <AgentState>[
+        AgentState.working,
+        AgentState.waitingDecision,
+        AgentState.pausedCost,
+        AgentState.blocked,
+        AgentState.waitingHost,
+        AgentState.idle,
+        AgentState.paused,
+      ];
+      final looks = <PersonLook>[
+        for (var i = 0; i < states.length; i++)
+          PersonLook(
+            skin: const <Color>[
+              Color(0xFFEBC29A),
+              Color(0xFFA9714B),
+              Color(0xFFD9A47A),
+            ][i % 3],
+            hair: const <Color>[
+              Color(0xFF2B1F1C),
+              Color(0xFF7A3A22),
+              Color(0xFF4A2E1E),
+            ][i % 3],
+            top: const <Color>[
+              Color(0xFF2A3854),
+              Color(0xFF3F7650),
+              Color(0xFF8A3A32),
+              Color(0xFF3C5FA8),
+            ][i % 4],
+            glasses: i == 2,
+            longHair: i == 1 || i == 5,
+          ),
+      ];
+      for (final lod in const <int>[1, 3]) {
+        final image = renderPlanFrame(
+          office.geometry,
+          occupants: <String, List<PersonLook>>{department.id: looks},
+          seatStates: <String, List<SeatState>>{
+            department.id: <SeatState>[for (final s in states) s.seat],
+          },
+          dense: true,
+          lod: lod,
+        );
+        // Les agents partis (café, couloir) sont dessinés en direct.
+        final recorder = ui.PictureRecorder();
+        final scale = lod == 1 ? 3.0 : 1.0;
+        final canvas = Canvas(recorder)
+          ..scale(scale)
+          ..drawImage(
+            image,
+            Offset.zero,
+            Paint()..filterQuality = FilterQuality.none,
+          )
+          ..scale(lod.toDouble());
+        var slot = 0;
+        for (final (i, state) in states.indexed) {
+          if (state.seat.presence != SeatPresence.away) {
+            continue;
+          }
+          final pose = office.awayPose(slot++, 4.0 + i * 6);
+          drawPerson(
+            canvas,
+            office.geometry.toImage(pose.at.dx, pose.at.dy),
+            looks[i],
+            pose: pose.walking ? PersonPose.walk : PersonPose.stand,
+            faceLeft: pose.faceLeft,
+            step: pose.step,
+            mug: pose.atCafe,
+            lod: lod,
+            mood: PersonMood.happy,
+          );
+        }
+        final picture = recorder.endRecording();
+        final out = picture.toImageSync(
+          (image.width * scale).round(),
+          (image.height * scale).round(),
+        );
+        picture.dispose();
+        await _writePng(out, '$dir/etats_x$lod.png');
+        out.dispose();
+        image.dispose();
+      }
+    });
+  });
+
+  // Vue « Salle » dans l'écran : à l'ouverture, puis de près (niveau fin
+  // préparé en arrière-plan).
+  testWidgets('capture la vue salle dans l\'écran', skip: skip, (tester) async {
+    final flutterRoot =
+        Platform.environment['FLUTTER_ROOT'] ??
+        File(Platform.resolvedExecutable)
+            .parent
+            .parent
+            .parent
+            .parent
+            .parent
+            .parent
+            .path;
+    await _loadFont('Segoe UI', const <String>[
+      r'C:\Windows\Fonts\segoeui.ttf',
+      r'C:\Windows\Fonts\seguisb.ttf',
+      r'C:\Windows\Fonts\segoeuib.ttf',
+    ]);
+    await _loadFont('MaterialIcons', <String>[
+      '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+    ]);
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: key,
+        child: const LeadDeskApp(home: LiveOfficeScreen()),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.byTooltip('Bureau suivant'));
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await tester.tap(find.text('Vue : Plateau'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    Future<void> shoot(String name) async {
+      // Laisse le niveau fin se préparer, puis l'affiche.
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(seconds: 2)),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.runAsync(() async {
+        final boundary =
+            key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final image = await boundary.toImage();
+        await _writePng(image, '$dir/$name.png');
+        image.dispose();
+      });
+    }
+
+    await shoot('salle_ecran');
+    for (var zoom = 0; zoom < 2; zoom++) {
+      await tester.tap(find.byTooltip('Zoom avant'));
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await shoot('salle_ecran_pres');
+    for (var zoom = 0; zoom < 2; zoom++) {
+      await tester.tap(find.byTooltip('Zoom avant'));
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await shoot('salle_ecran_tres_pres');
+
+    // Bureau précédent, toujours en vue « Salle » : Produit, où Atlas,
+    // disponible, est au café ou dans le couloir.
+    await tester.tap(find.byTooltip('Bureau précédent'));
+    await tester.pump(const Duration(milliseconds: 100));
+    await shoot('salle_ecran_produit');
+    for (var zoom = 0; zoom < 3; zoom++) {
+      await tester.tap(find.byTooltip('Zoom avant'));
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await shoot('salle_ecran_produit_pres');
+  });
 
   testWidgets('capture un bureau visité et une fiche agent', skip: skip, (
     tester,

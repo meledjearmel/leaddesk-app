@@ -131,12 +131,29 @@ void main() {
     expect(find.text('Technique'), findsOneWidget);
     expect(find.text('Qualité et sécurité'), findsOneWidget);
 
+    // Sans département visité, la vue « Salle » ouvre le premier.
     await tester.tap(find.text('Vue : Plateau'));
     await tester.pump();
 
     expect(find.text('Vue : Salle'), findsOneWidget);
+    expect(find.text('Direction'), findsOneWidget);
     expect(find.text('Technique'), findsNothing);
+
+    // Les flèches du fil d'Ariane passent d'un bureau à l'autre, en vue
+    // « Salle » aussi.
+    await tester.tap(find.byTooltip('Bureau suivant'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Bureau suivant'));
+    await tester.pump();
+    expect(find.text('Vue : Salle'), findsOneWidget);
+    expect(find.text('Technique'), findsOneWidget);
     expect(find.text('Forge'), findsWidgets);
+
+    // « Vue : Plateau » ramène au plateau, sur le même département.
+    await tester.tap(find.text('Vue : Salle'));
+    await tester.pump();
+    expect(find.text('Vue : Plateau'), findsOneWidget);
+    expect(find.text('Technique'), findsWidgets);
   });
 
   testWidgets('le panneau des agents se replie', (tester) async {

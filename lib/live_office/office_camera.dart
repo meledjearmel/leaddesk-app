@@ -59,9 +59,80 @@ class OfficeCamera extends ChangeNotifier {
     final sx = _viewport.width / _scene.width;
     final sy = _viewport.height / _scene.height;
     // Au-delà, le pixel art devient trop gros pour qu'on voie la pièce.
-    final raw = min((_contain ? min(sx, sy) : max(sx, sy)) * _zoom, maxScale);
+    final raw = min((_contain ? min(sx, sy) : max(sx, sy)) * _zoom, _maxScale);
+    if (_levels > 1) {
+      return snapLevelScale(raw, pixelRatio, _levels, up: !_contain);
+    }
     // « Couvrir » arrondit vers le haut : pas de vide sur les bords.
     return snapScale(raw, pixelRatio, up: !_contain);
+  }
+
+  int _levels = 1;
+
+  /// Niveaux de détail de la scène : 1 (plateau) ou 3 (bureau d'un
+  /// département, rendu ×1, ×2 ou ×3).
+  int get levels => _levels;
+
+  /// Agrandissement maximal : 3 points par pixel d'art sur le plateau
+  /// (D-032) ; avec des niveaux de détail, 2 pixels physiques par pixel du
+  /// dessin au niveau le plus fin.
+  double get _maxScale =>
+      _levels > 1 ? maxPixelsPerArt(_levels) / pixelRatio : maxScale;
+
+  /// Pixels physiques par pixel d'art au plus, avec [levels] niveaux.
+  static int maxPixelsPerArt(int levels) => 2 * levels;
+
+  /// Niveau de détail à afficher : le plus fin dont chaque pixel du dessin
+  /// couvre un nombre entier de pixels physiques, au plus 2 (×1 en vue
+  /// d'ensemble, ×2 et ×3 de près).
+  int get level => levelFor(scale * pixelRatio, _levels);
+
+  /// Niveau pour [physical] pixels physiques par pixel d'art.
+  static int levelFor(double physical, int levels) {
+    final p = physical.round();
+    for (var l = levels; l > 1; l--) {
+      if (p % l == 0 && p ~/ l <= 2) {
+        return l;
+      }
+    }
+    return 1;
+  }
+
+  /// Agrandissements permis avec [levels] niveaux, en pixels physiques par
+  /// pixel d'art : ceux qui tombent juste sur un niveau, sans dépasser
+  /// 2 pixels physiques par pixel du dessin (1, 2, 3, 4, 6 avec trois
+  /// niveaux).
+  static List<int> allowedPixels(int levels) => <int>[
+    for (var p = 1; p <= maxPixelsPerArt(levels); p++)
+      if (p <= 2 || levelFor(p.toDouble(), levels) > 1) p,
+  ];
+
+  /// Échelle permise la plus proche, avec niveaux de détail ; en dessous
+  /// d'un pixel physique, l'image est réduite avec lissage.
+  static double snapLevelScale(
+    double raw,
+    double pixelRatio,
+    int levels, {
+    bool up = false,
+  }) {
+    final physical = raw * pixelRatio;
+    if (physical < 1) {
+      return raw;
+    }
+    final allowed = allowedPixels(levels);
+    var best = allowed.first;
+    for (final p in allowed) {
+      final better = up
+          ? (p >= physical - 1e-9 && (best < physical - 1e-9 || p < best))
+          : (physical - p).abs() < (physical - best).abs() - 1e-9;
+      if (better) {
+        best = p;
+      }
+    }
+    if (up && best < physical - 1e-9) {
+      best = allowed.last;
+    }
+    return best / pixelRatio;
   }
 
   /// Échelle du cadrage de départ, sans zoom ni arrondi.
@@ -72,9 +143,14 @@ class OfficeCamera extends ChangeNotifier {
   }
 
   /// Zoom au-delà duquel l'agrandissement plafonne.
-  double get _zoomCap => _viewport.isEmpty
-      ? maxZoom
-      : min(maxZoom, max(minZoom, maxScale / _baseScale));
+  double get _zoomCap {
+    if (_viewport.isEmpty) {
+      return maxZoom;
+    }
+    final cap = max(minZoom, _maxScale / _baseScale);
+    // Avec niveaux de détail, le zoom va jusqu'au niveau le plus fin.
+    return _levels > 1 ? cap : min(maxZoom, cap);
+  }
 
   /// Échelle la plus proche qui tombe juste sur la grille des pixels
   /// physiques.
@@ -110,7 +186,9 @@ class OfficeCamera extends ChangeNotifier {
     required Offset focus,
     required bool contain,
     double initialZoom = 1,
+    int levels = 1,
   }) {
+    _levels = levels.clamp(1, 3);
     _scene = scene;
     _focus = focus;
     _contain = contain;

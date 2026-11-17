@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/painting.dart';
 
 import 'iso.dart';
+import 'presence.dart';
 
 /// Couleurs du mobilier : bois, métal, tissus, livres, feuillage.
 abstract final class Tone {
@@ -58,17 +59,50 @@ class Glow {
 /// Chaque méthode dessine un meuble à sa place dans la grille ;
 /// les lampes et les écrans ajoutent un halo dans [glows].
 class FurnitureKit {
-  FurnitureKit(this.canvas, this.frame) : g = Iso(canvas);
+  FurnitureKit(this.canvas, this.frame, {this.lod = 1}) : g = Iso(canvas);
 
   final ui.Canvas canvas;
 
   /// Image d'ambiance en cours (écrans, voyants).
   final int frame;
+
+  /// Niveau de détail : 1 (vue d'ensemble), 2 ou 3 (de près). Le canevas
+  /// est déjà agrandi ; un niveau ajoute les détails qui tiennent dans
+  /// un pixel fin de 1/[lod] pixel d'art, toujours sans lissage.
+  final int lod;
+
+  /// Taille d'un pixel fin, en pixels d'art.
+  double get px => 1 / lod;
   final Iso g;
   final List<Glow> glows = <Glow>[];
 
   void desk(double x0, double y0, double x1, double y1) {
     g.floor(x0 + 0.3, y0 + 0.3, x1 + 0.4, y1 + 0.5, const Color(0x66000000));
+    if (lod >= 3) {
+      // Sous le bureau, avant lui : câbles qui tombent jusqu'à la
+      // multiprise posée au sol.
+      final mid = (x0 + x1) / 2;
+      g
+        ..wallX(mid - 0.5, mid - 0.46, y0 + 0.3, 0, 19, const Color(0xFF15171B))
+        ..wallX(mid + 0.2, mid + 0.24, y0 + 0.3, 0, 19, const Color(0xFF15171B))
+        ..solid(
+          mid - 0.6,
+          y0 + 0.3,
+          mid + 0.4,
+          y0 + 0.45,
+          0,
+          1.5,
+          const Color(0xFFDADDE0),
+        )
+        ..floor(
+          mid - 0.55,
+          y0 + 0.34,
+          mid - 0.45,
+          y0 + 0.4,
+          const Color(0xFFE2574A),
+          1.6,
+        );
+    }
     const line = Color(0xFF55331B);
     const brass = Color(0xFFD9B36A);
     for (final xs in <double>[x0 + 0.15, x1 - 1.4]) {
@@ -108,10 +142,34 @@ class FurnitureKit {
         const Color(0xFFA9743F),
         22,
       );
+    if (lod >= 2) {
+      // Fil du bois : stries fines le long du plateau.
+      final random = Random((x0 * 13 + y0 * 7).round());
+      final thick = px / Iso.halfTileHeight;
+      for (var i = 0; i < 9; i++) {
+        final ys = y0 + 0.06 + random.nextDouble() * (y1 - y0 - 0.12);
+        final xs = x0 + random.nextDouble() * (x1 - x0) * 0.5;
+        final xe = min(x1 - 0.05, xs + 0.6 + random.nextDouble() * (x1 - x0));
+        g.floor(
+          xs,
+          ys,
+          xe,
+          ys + thick,
+          i.isEven ? const Color(0xFFA9743F) : const Color(0xFFC8935A),
+          22.05,
+        );
+      }
+    }
   }
 
   /// Écran dont la dalle est tournée vers la caméra (côté y croissant).
-  void monitor(double x, double y, {double w = 1.6, int seed = 0}) {
+  void monitor(
+    double x,
+    double y, {
+    double w = 1.6,
+    int seed = 0,
+    ScreenMode screen = ScreenMode.code,
+  }) {
     const z = 22.0;
     g
       ..floor(x - 0.35, y - 0.1, x + 0.35, y + 0.3, Tone.metal, z + 0.5)
@@ -135,6 +193,15 @@ class FurnitureKit {
         z + 24,
         const Color(0xFF0F2B24),
       );
+    if (screen != ScreenMode.code) {
+      _otherScreen(x, y, w, z, screen);
+      return;
+    }
+    if (lod >= 2) {
+      _codeLines(x, y, w, z, seed);
+      glows.add(Glow(Iso.pt(x, y + 0.6, z + 14), 26, const Color(0x335CF2A6)));
+      return;
+    }
     const lengths = <double>[0.45, 0.8, 0.35, 0.65, 0.5, 0.85];
     const indents = <double>[0, 0.12, 0.12, 0.24, 0.12, 0];
     final usable = w - 0.4;
@@ -152,6 +219,189 @@ class FurnitureKit {
       g.wallX(x + w / 2 - 0.4, x + w / 2 - 0.3, y, z + 8, z + 10, Tone.white);
     }
     glows.add(Glow(Iso.pt(x, y + 0.6, z + 14), 26, const Color(0x335CF2A6)));
+  }
+
+  /// Écran qui ne montre pas de code : veille, demande en attente, erreur,
+  /// ou éteint (poste vacant).
+  void _otherScreen(double x, double y, double w, double z, ScreenMode mode) {
+    final x0 = x - w / 2 + 0.08;
+    final x1 = x + w / 2 - 0.08;
+    switch (mode) {
+      case ScreenMode.off:
+        g.wallX(x0, x1, y, z + 7, z + 24, const Color(0xFF0B0C0E));
+        if (lod >= 3) {
+          g.wallX(
+            x1 - 0.3,
+            x1 - 0.05,
+            y,
+            z + 19,
+            z + 23,
+            const Color(0x14FFFFFF),
+          );
+        }
+      case ScreenMode.standby:
+        // Fond sombre, horloge qui respire.
+        g
+          ..wallX(x0, x1, y, z + 7, z + 24, const Color(0xFF101A24))
+          ..wallX(
+            x - 0.22,
+            x + 0.22,
+            y,
+            z + 14,
+            z + 17,
+            frame.isEven ? const Color(0xFF3A5A7A) : const Color(0xFF2E4A66),
+          );
+        if (lod >= 2) {
+          g.wallX(
+            x - 0.3,
+            x + 0.3,
+            y,
+            z + 11,
+            z + 11 + px,
+            const Color(0xFF2E4A66),
+          );
+        }
+        glows.add(
+          Glow(Iso.pt(x, y + 0.6, z + 14), 18, const Color(0x1A5C8AF2)),
+        );
+      case ScreenMode.waiting:
+        // Fenêtre ambrée et son bouton, qui clignote : on attend le CEO.
+        g
+          ..wallX(x0, x1, y, z + 7, z + 24, const Color(0xFF1A1610))
+          ..wallX(x - 0.32, x + 0.32, y, z + 11, z + 20, Tone.amber)
+          ..wallX(
+            x - 0.26,
+            x + 0.26,
+            y,
+            z + 12,
+            z + 18,
+            const Color(0xFF3A2E14),
+          )
+          ..wallX(
+            x - 0.12,
+            x + 0.12,
+            y,
+            z + 12.5,
+            z + 14,
+            frame.isEven ? Tone.amber : const Color(0xFFFFE9A8),
+          );
+        if (lod >= 2) {
+          g
+            ..wallX(x - 0.2, x + 0.1, y, z + 16.5, z + 16.5 + px, Tone.white)
+            ..wallX(x - 0.2, x + 0.18, y, z + 15.3, z + 15.3 + px, Tone.white);
+        }
+        glows.add(
+          Glow(Iso.pt(x, y + 0.6, z + 14), 26, const Color(0x40F2B34C)),
+        );
+      case ScreenMode.error:
+        g
+          ..wallX(x0, x1, y, z + 7, z + 24, const Color(0xFF2A0E10))
+          ..wallX(
+            x - 0.25,
+            x + 0.25,
+            y,
+            z + 13,
+            z + 19,
+            const Color(0xFFE5484D),
+          )
+          ..wallX(x - 0.05, x + 0.05, y, z + 14.5, z + 17.5, Tone.white);
+        if (lod >= 2) {
+          for (var i = 0; i < 3; i++) {
+            final zz = z + 10.5 - i * 1.2;
+            g.wallX(
+              x0 + 0.1,
+              x1 - 0.2 - i * 0.15,
+              y,
+              zz,
+              zz + px,
+              const Color(0xFFF08A8A),
+            );
+          }
+        }
+        glows.add(
+          Glow(Iso.pt(x, y + 0.6, z + 14), 26, const Color(0x40E5484D)),
+        );
+      case ScreenMode.code:
+        break;
+    }
+  }
+
+  /// Lignes de code d'un écran, aux niveaux fins : lignes d'un pixel fin,
+  /// mots colorés, indentation, curseur ; au niveau ×3, reflet de la dalle,
+  /// voyant d'alimentation et bord éclairé.
+  void _codeLines(double x, double y, double w, double z, int seed) {
+    const keyword = Color(0xFFC792EA);
+    const text = Tone.screenGreen;
+    const string = Color(0xFFF2A04A);
+    const comment = Color(0xFF5E8A7A);
+    const plain = Color(0xFFD8F7E8);
+    final left = x - w / 2 + 0.14;
+    final usable = w - 0.3;
+    final lines = lod == 2 ? 10 : 14;
+    final step = 16 / lines;
+    final thick = px;
+    for (var i = 0; i < lines; i++) {
+      final row = (i + frame * 2 + seed) % 23;
+      final random = Random(row * 31 + seed % 7);
+      final indent = (random.nextInt(3) * 0.08).toDouble();
+      final zz = z + 23 - i * step;
+      if (row % 7 == 6) {
+        continue; // ligne vide
+      }
+      var cursor = left + indent;
+      final words = 1 + random.nextInt(4);
+      for (var k = 0; k < words; k++) {
+        final length = (0.06 + random.nextDouble() * 0.22) * usable;
+        if (cursor + length > left + usable) {
+          break;
+        }
+        final color = row % 5 == 0
+            ? comment
+            : switch ((k + row) % 4) {
+                0 => keyword,
+                1 => text,
+                2 => plain,
+                _ => string,
+              };
+        g.wallX(cursor, cursor + length, y, zz - thick, zz, color);
+        cursor += length + 0.05;
+      }
+    }
+    // Curseur clignotant.
+    if (frame.isEven) {
+      g.wallX(left + 0.3, left + 0.36, y, z + 9, z + 10.5, Tone.white);
+    }
+    if (lod >= 3) {
+      // Reflet en biais sur la dalle, bord supérieur éclairé, voyant.
+      for (var k = 0; k < 6; k++) {
+        final xs = x + w / 2 - 0.35 + k * 0.03;
+        g.wallX(
+          xs,
+          xs + 0.03,
+          y,
+          z + 18 - k * 1.5,
+          z + 23 - k * 1.5,
+          const Color(0x1FFFFFFF),
+        );
+      }
+      g
+        ..wallX(
+          x - w / 2,
+          x + w / 2,
+          y,
+          z + 26 - px,
+          z + 26,
+          const Color(0xFF4A4F57),
+        )
+        ..wallX(
+          x + w / 2 - 0.16,
+          x + w / 2 - 0.12,
+          y,
+          z + 5.6,
+          z + 6.3,
+          const Color(0xFF4DF58C),
+        );
+    }
   }
 
   /// Écran vu de dos : son utilisateur fait face à la caméra.
@@ -194,6 +444,22 @@ class FurnitureKit {
       )
       ..floor(x - 0.5, y - 0.1, x + 0.5, y + 0.1, const Color(0xFF45484F), 22.5)
       ..floor(x + 0.8, y - 0.1, x + 1, y + 0.1, const Color(0xFF2B2D32), 22.5);
+    if (lod >= 2) {
+      // Touches : trois rangées, barre d'espace.
+      const key = Color(0xFF6B7078);
+      const gap = 0.025;
+      for (var r = 0; r < 3; r++) {
+        final ky = y - 0.09 + r * 0.06;
+        for (var k = 0; k < 10; k++) {
+          final kx = x - 0.48 + k * 0.096;
+          if (r == 2 && k >= 3 && k <= 6) {
+            continue;
+          }
+          g.floor(kx, ky, kx + 0.096 - gap, ky + 0.06 - gap / 2, key, 22.6);
+        }
+      }
+      g.floor(x - 0.19, y + 0.03, x + 0.19, y + 0.07, key, 22.6);
+    }
   }
 
   void mug(Offset at) {
@@ -201,6 +467,34 @@ class FurnitureKit {
       ..rect(at.dx - 2, at.dy - 4, 4, 4, Tone.white)
       ..rect(at.dx - 1, at.dy - 4, 2, 1, const Color(0xFF6B4A32))
       ..rect(at.dx + 2, at.dy - 3, 1, 2, Tone.white);
+    if (lod >= 2) {
+      // Ombre du flanc, café au bord, anse creuse.
+      g
+        ..rect(at.dx + 1, at.dy - 4 + px, 1, 4 - px, const Color(0xFFCFCABD))
+        ..rect(
+          at.dx - 2 + px,
+          at.dy - 4,
+          4 - 2 * px,
+          px,
+          const Color(0xFF4A2E1E),
+        )
+        ..rect(
+          at.dx + 2,
+          at.dy - 3 + px,
+          px,
+          2 - 2 * px,
+          const Color(0xFFCFCABD),
+        );
+    }
+    if (lod >= 3) {
+      // Vapeur qui monte, d'une image à l'autre.
+      const steam = Color(0x80F2EFE6);
+      final sway = frame.isEven ? 0.0 : px;
+      g
+        ..rect(at.dx - 1 + sway, at.dy - 5 - px, px, px, steam)
+        ..rect(at.dx - sway, at.dy - 6, px, px, steam)
+        ..rect(at.dx + sway, at.dy - 7 + px, px, px, steam);
+    }
   }
 
   void binders(double x, double y) {
@@ -243,6 +537,35 @@ class FurnitureKit {
           2,
           Tone.greens[(i + t ~/ 4) % Tone.greens.length],
         );
+      }
+    }
+    if (lod >= 2) {
+      // Nervures et pointes des feuilles, en pixels fins.
+      final fine = 1 / lod;
+      const vein = Color(0xFF7CC47A);
+      const dark = Color(0xFF1C3F24);
+      for (var i = 0; i < count; i++) {
+        final angle = pi + (i + 0.5) / count * pi;
+        for (var t = 1.0; t < length * 0.9; t += 2 * fine) {
+          final px = center.dx + cos(angle) * t;
+          final py = center.dy + sin(angle) * t * 0.95 + t * t * 0.035;
+          g.rect(
+            (px * lod).roundToDouble() / lod,
+            (py * lod).roundToDouble() / lod - fine,
+            fine,
+            fine,
+            vein,
+          );
+          if (t.toInt().isOdd) {
+            g.rect(
+              (px * lod).roundToDouble() / lod,
+              (py * lod).roundToDouble() / lod + fine,
+              fine,
+              fine,
+              dark,
+            );
+          }
+        }
       }
     }
   }
@@ -324,14 +647,9 @@ class FurnitureKit {
         } else {
           final width = 0.11 + random.nextInt(3) * 0.035;
           final height = step * (0.5 + random.nextDouble() * 0.32);
-          g.wallX(
-            x,
-            x + width,
-            y1,
-            zb,
-            zb + height,
-            Tone.books[random.nextInt(Tone.books.length)],
-          );
+          final color = Tone.books[random.nextInt(Tone.books.length)];
+          g.wallX(x, x + width, y1, zb, zb + height, color);
+          bookSpine(x, x + width, y1, zb, zb + height, color);
           x += width + 0.02;
         }
       }
@@ -341,6 +659,36 @@ class FurnitureKit {
       ..wallX(x0, x0 + 0.1, y1, 0, h, Tone.shelfWood)
       ..wallX(x1 - 0.1, x1, y1, 0, h, Tone.shelfWood)
       ..wallX(x0, x1, y1, h - 3, h, Tone.shelfWood);
+  }
+
+  /// Dos d'un livre aux niveaux fins : arête éclairée, étiquette, titre.
+  void bookSpine(
+    double x0,
+    double x1,
+    double y,
+    double z0,
+    double z1,
+    Color color, {
+    bool side = false,
+  }) {
+    if (lod < 2) {
+      return;
+    }
+    void face(double a, double b, double za, double zb, Color c) =>
+        side ? g.wallY(a, b, y, za, zb, c) : g.wallX(a, b, y, za, zb, c);
+    final w = x1 - x0;
+    face(x0, x0 + w * 0.25, z0, z1, shade(color, 1.25));
+    final band = z0 + (z1 - z0) * 0.62;
+    face(x0, x1, band, band + 2 * px, shade(color, 0.6));
+    if (lod >= 3) {
+      face(
+        x0 + w * 0.35,
+        x1 - w * 0.25,
+        z0 + (z1 - z0) * 0.3,
+        z0 + (z1 - z0) * 0.5,
+        const Color(0xFFD9B36A),
+      );
+    }
   }
 
   void serverRack(double x0, double y0, double x1, double y1) {
@@ -359,13 +707,17 @@ class FurnitureKit {
         right: const Color(0xFF0D0E11),
       );
     var unit = 0;
+    // Voyants : autant que la largeur de l'armoire en accueille.
+    final leds = ((x1 - x0 - 0.45) / 0.22).floor().clamp(1, 6);
     for (var z = 5.0; z < h - 6; z += 6) {
       g.wallX(x0 + 0.15, x1 - 0.15, y1, z, z + 4.5, const Color(0xFF1F2227));
-      for (var k = 0; k < 6; k++) {
+      for (var k = 0; k < leds; k++) {
         final lit = (k * 3 + unit * 5 + frame * (k + 1)) % 4 != 0;
         final color = !lit
             ? const Color(0xFF12331F)
-            : (k == 5 && unit.isOdd ? Tone.amber : const Color(0xFF4DF58C));
+            : (k == leds - 1 && unit.isOdd
+                  ? Tone.amber
+                  : const Color(0xFF4DF58C));
         final xs = x0 + 0.3 + k * 0.22;
         g.wallX(xs, xs + 0.1, y1, z + 1.5, z + 3, color);
       }
@@ -377,7 +729,27 @@ class FurnitureKit {
         z + 2.5,
         const Color(0xFF1A1C20),
       );
+      if (lod >= 2) {
+        // Ouïes d'aération et poignées.
+        for (var v = x0 + 0.2; v < x1 - 0.5; v += 0.08) {
+          g.wallX(v, v + 0.04, y1, z + 3.4, z + 4.2, const Color(0xFF2B2E33));
+        }
+        g.wallX(x1 - 0.28, x1 - 0.2, y1, z + 0.6, z + 4, Tone.metalLight);
+      }
       unit++;
+    }
+    if (lod >= 3) {
+      // Faisceau de câbles colorés sur le flanc.
+      const cables = <Color>[
+        Color(0xFF3F5F8A),
+        Color(0xFFF2C14E),
+        Color(0xFFE2574A),
+        Color(0xFF3F8A4A),
+      ];
+      for (var i = 0; i < cables.length; i++) {
+        final ys = y0 + 0.3 + i * 0.07;
+        g.wallY(ys, ys + 0.035, x1 + 0.01, 4, h - 8, cables[i]);
+      }
     }
     glows.add(
       Glow(Iso.pt((x0 + x1) / 2, y1 + 0.5, 34), 34, const Color(0x2E4DF58C)),
@@ -409,9 +781,13 @@ class FurnitureKit {
       ..wallX(x0 + 1.4, x0 + 2.4, y, 24, 25, ink)
       ..wallX(x0 + 1.4, x0 + 2.1, y, 21, 22, ink)
       ..wallX(x0 + 0.5, x0 + 1.6, y, 47, 48, ink);
+    noteDetail(cx, cx + 0.3, y, 40, 45, 1);
+    noteDetail(cx - 0.34, cx - 0.04, y, 34, 39, 2);
+    noteDetail(cx + 0.34, cx + 0.64, y, 34, 39, 3);
+    noteDetail(cx, cx + 0.3, y, 28, 33, 4);
   }
 
-  void roundTable(double cx, double cy, double radius) {
+  void roundTable(double cx, double cy, double radius, {bool laptops = true}) {
     const z = 15.0;
     final foot = Iso.pt(cx, cy);
     final top = Iso.pt(cx, cy, z);
@@ -457,6 +833,12 @@ class FurnitureKit {
       }
     }
 
+    if (!laptops) {
+      // Table de café : deux tasses.
+      mug(Iso.pt(cx - 0.25, cy - 0.1, z));
+      mug(Iso.pt(cx + 0.3, cy + 0.2, z));
+      return;
+    }
     laptop(cx - 0.9, cy - 0.9, open: true);
     laptop(cx + 0.9, cy - 0.6, open: true);
     laptop(cx + 0.5, cy + 1, open: false);
@@ -693,9 +1075,49 @@ class FurnitureKit {
       for (var z = 42.0; z > 27; z -= 8) {
         if ((i * 5 + 3) % 7 < 4) {
           g.wallX(x, x + 0.3, y + 0.05, z, z + 5, notes[i % notes.length]);
+          noteDetail(x, x + 0.3, y + 0.05, z, z + 5, i);
         }
         i++;
       }
+    }
+  }
+
+  /// Écriture d'un post-it aux niveaux fins ; punaise au niveau ×3.
+  void noteDetail(
+    double x0,
+    double x1,
+    double y,
+    double z0,
+    double z1, [
+    int seed = 0,
+    bool side = false,
+  ]) {
+    if (lod < 2) {
+      return;
+    }
+    void face(double a, double b, double za, double zb, Color c) =>
+        side ? g.wallY(a, b, y, za, zb, c) : g.wallX(a, b, y, za, zb, c);
+    const ink = Color(0xFF4A4F57);
+    final w = x1 - x0;
+    final h = z1 - z0;
+    face(
+      x0 + w * 0.15,
+      x1 - w * (0.15 + (seed % 3) * 0.1),
+      z0 + h * 0.62,
+      z0 + h * 0.62 + px,
+      ink,
+    );
+    face(x0 + w * 0.15, x1 - w * 0.3, z0 + h * 0.35, z0 + h * 0.35 + px, ink);
+    // Coin replié, un ton plus sombre.
+    face(x1 - w * 0.2, x1, z0, z0 + 2 * px, const Color(0x33000000));
+    if (lod >= 3) {
+      face(
+        x0 + w * 0.42,
+        x0 + w * 0.58,
+        z1 - 2 * px,
+        z1,
+        const Color(0xFFE2574A),
+      );
     }
   }
 
