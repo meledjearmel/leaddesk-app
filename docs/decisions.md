@@ -206,6 +206,14 @@ Questions ouvertes pour Armel : qui peut proposer un aménagement (une IA dédi�
   - **Limite de coût** : l'application surveille l'exécution toutes les 5 secondes. Dès que le CEO relève la limite dans « Décisions », l'agent reprend ; s'il refuse, la surveillance s'arrête et le journal est effacé.
 - **Interface** : section « À reprendre » en tête du panneau « Exécution » (« Reprendre », ou « À décider » pour une limite de coût).
 - **Limites** : sans journal local (autre poste, fichier effacé), l'exécution reprend du début avec le même contexte de tâche.
+### D-026 · Back-office dans l'application
+
+- **Décision** : la roue dentée du rail ouvre l'espace « Administration », qui prend la place du bureau. Cinq rubriques : Entreprise, Organisation (unités imbriquées), Postes, Agents, Modèles IA (fournisseurs et modèles). Chaque rubrique montre une liste à gauche et un éditeur à droite (plan, phase 2).
+- **Rien en dur (RM-03)** : unités, postes, agents, types de fournisseurs et étiquettes d'activité viennent tous du serveur. L'API existante suffisait : aucun changement côté serveur.
+- **Agents** : un seul « Enregistrer » envoie l'identité, le changement de poste (qui clôt l'affectation, RM-05), les modèles (un par défaut) et la mise en service. Un agent qui perd ses modèles est d'abord repassé en brouillon (RM-06).
+- **Garde-fous** : la mise à la corbeille et le retrait d'un fournisseur ou d'un modèle demandent confirmation. Unités, postes et agents ont une corbeille avec « Restaurer ». Une unité système ne propose pas la corbeille. Les listes de rattachement excluent ce qui créerait une boucle, et le serveur garde le dernier mot : ses messages de validation s'affichent tels quels.
+- **Clé d'API** : jamais saisie ici. L'écran renvoie vers « Exécution › Réglages », où elle reste sur l'ordinateur (D-022).
+- **Limites** : les intégrations MCP, les règles d'autonomie, les seuils de coût et les notifications restent hors de cet écran pour l'instant.
 ## Propositions de mise à jour des documents de conception
 
 - `REGLES_METIER_LEADDESK.md` (RM-02) : ajouter qu'une entreprise vierge contient toujours les unités RH et Moyens généraux, chacune avec un poste de responsable sans agent (D-013).

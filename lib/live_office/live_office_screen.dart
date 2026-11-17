@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../admin/admin_controller.dart';
+import '../admin/admin_screen.dart';
 import '../api/api_client.dart';
 import '../api/realtime.dart';
 import '../app/theme.dart';
@@ -36,7 +38,11 @@ class LiveOfficeScreen extends StatefulWidget {
     this.realtime,
     this.engine,
     this.decisions,
+    this.admin,
   });
+
+  /// Back-office (D-026) ; absent en démonstration.
+  final AdminController? admin;
 
   /// File des décisions du CEO ; absente en démonstration.
   final DecisionsController? decisions;
@@ -75,6 +81,14 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
   ApiClient? _client;
   bool _runOpen = false;
   bool _decisionsOpen = false;
+  bool _adminOpen = false;
+
+  void _toggleAdmin() {
+    setState(() => _adminOpen = !_adminOpen);
+    if (_adminOpen) {
+      unawaited(widget.admin?.load());
+    }
+  }
 
   void _setDecisionsOpen(bool open) {
     setState(() {
@@ -287,6 +301,8 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                     !editing &&
                     !showProposal &&
                     width >= LiveOfficeScreen.agentPanelBreakpoint;
+                final admin = widget.admin;
+                final showAdmin = admin != null && _adminOpen;
                 final showConversation =
                     !showProposal &&
                     !showRun &&
@@ -314,34 +330,45 @@ class _LiveOfficeScreenState extends State<LiveOfficeScreen> {
                       onToggleDecisions: decisions == null
                           ? null
                           : () => _setDecisionsOpen(!_decisionsOpen),
+                      adminOpen: showAdmin,
+                      onToggleAdmin: admin == null ? null : _toggleAdmin,
                     ),
                     const SizedBox(width: 6),
-                    if (showAgents) ...<Widget>[
-                      AgentPanel(controller: _controller),
-                      const SizedBox(width: 8),
-                    ],
-                    Expanded(child: _buildMap()),
-                    if (editing) ...<Widget>[
-                      const SizedBox(width: 8),
-                      EditorPanel(controller: _controller),
-                    ] else if (showProposal) ...<Widget>[
-                      const SizedBox(width: 8),
-                      ProposalPanel(controller: _controller),
-                    ] else if (showDecisions) ...<Widget>[
-                      const SizedBox(width: 8),
-                      DecisionsPanel(
-                        controller: decisions,
-                        onClose: () => _setDecisionsOpen(false),
-                      ),
-                    ] else if (showRun) ...<Widget>[
-                      const SizedBox(width: 8),
-                      RunPanel(
-                        controller: engine,
-                        onClose: () => setState(() => _runOpen = false),
-                      ),
-                    ] else if (showConversation) ...<Widget>[
-                      const SizedBox(width: 8),
-                      ConversationPanel(controller: _controller),
+                    if (showAdmin)
+                      Expanded(
+                        child: AdminScreen(
+                          controller: admin,
+                          onClose: _toggleAdmin,
+                        ),
+                      )
+                    else ...<Widget>[
+                      if (showAgents) ...<Widget>[
+                        AgentPanel(controller: _controller),
+                        const SizedBox(width: 8),
+                      ],
+                      Expanded(child: _buildMap()),
+                      if (editing) ...<Widget>[
+                        const SizedBox(width: 8),
+                        EditorPanel(controller: _controller),
+                      ] else if (showProposal) ...<Widget>[
+                        const SizedBox(width: 8),
+                        ProposalPanel(controller: _controller),
+                      ] else if (showDecisions) ...<Widget>[
+                        const SizedBox(width: 8),
+                        DecisionsPanel(
+                          controller: decisions,
+                          onClose: () => _setDecisionsOpen(false),
+                        ),
+                      ] else if (showRun) ...<Widget>[
+                        const SizedBox(width: 8),
+                        RunPanel(
+                          controller: engine,
+                          onClose: () => setState(() => _runOpen = false),
+                        ),
+                      ] else if (showConversation) ...<Widget>[
+                        const SizedBox(width: 8),
+                        ConversationPanel(controller: _controller),
+                      ],
                     ],
                   ],
                 );

@@ -15,6 +15,8 @@ class IconRail extends StatelessWidget {
     this.decisionsOpen = false,
     this.decisionCount = 0,
     this.onToggleDecisions,
+    this.adminOpen = false,
+    this.onToggleAdmin,
     super.key,
   });
 
@@ -22,6 +24,10 @@ class IconRail extends StatelessWidget {
   final bool decisionsOpen;
   final int decisionCount;
   final VoidCallback? onToggleDecisions;
+
+  /// Back-office (« Administration ») ; absent en démonstration.
+  final bool adminOpen;
+  final VoidCallback? onToggleAdmin;
 
   static const double width = 52;
 
@@ -120,9 +126,11 @@ class IconRail extends StatelessWidget {
           const Spacer(),
           const LdIconButton(icon: Icons.layers_outlined, tooltip: 'Projets'),
           const SizedBox(height: 6),
-          const LdIconButton(
+          LdIconButton(
             icon: Icons.settings_outlined,
-            tooltip: 'Réglages',
+            tooltip: onToggleAdmin == null ? 'Réglages' : 'Administration',
+            active: adminOpen,
+            onTap: onToggleAdmin,
           ),
           if (onSignOut case final signOut?) ...<Widget>[
             const SizedBox(height: 6),

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../admin/admin_controller.dart';
 import '../api/api_client.dart';
 import '../api/realtime.dart';
 import '../app/theme.dart';
@@ -56,6 +57,7 @@ class _AppGateState extends State<AppGate> {
   RealtimeClient? _realtime;
   RunController? _engine;
   DecisionsController? _decisions;
+  AdminController? _admin;
   String _lastServer = '';
 
   @override
@@ -117,6 +119,7 @@ class _AppGateState extends State<AppGate> {
           host: HostDevice(api: _client!, vault: vault),
         );
         _decisions = DecisionsController(_client!);
+        _admin = AdminController(_client!);
         _stage = _Stage.office;
       }
     });
@@ -140,6 +143,8 @@ class _AppGateState extends State<AppGate> {
     _decisions?.dispose();
     _decisions = null;
     _engine = null;
+    _admin?.dispose();
+    _admin = null;
     final realtime = _realtime;
     _realtime = null;
     if (realtime != null) {
@@ -202,6 +207,7 @@ class _AppGateState extends State<AppGate> {
         realtime: _realtime,
         engine: _engine,
         decisions: _decisions,
+        admin: _admin,
         onSignOut: _signOut,
       ),
       _Stage.demo => LiveOfficeScreen(

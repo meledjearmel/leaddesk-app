@@ -14,6 +14,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:leaddesk_app/admin/admin_controller.dart';
+import 'package:leaddesk_app/admin/admin_screen.dart';
 import 'package:leaddesk_app/api/api_client.dart';
 import 'package:leaddesk_app/app/theme.dart';
 import 'package:leaddesk_app/auth/auth_screens.dart';
@@ -33,6 +35,7 @@ import 'package:leaddesk_app/office/office_planner.dart';
 import 'package:leaddesk_app/office/studio_template.dart';
 
 import '../decisions/decisions_test.dart' show FakeDecisions, controllerFor;
+import '../support/admin_fakes.dart';
 import '../support/engine_fakes.dart';
 import '../support/proposal_source.dart';
 
@@ -482,4 +485,68 @@ void main() {
       image.dispose();
     });
   });
+
+  for (final (name, section, selected) in const <(String, AdminSection, int)>[
+    ('admin_unites', AdminSection.units, 1),
+    ('admin_agent', AdminSection.agents, 7),
+    ('admin_modeles', AdminSection.providers, 50),
+  ]) {
+    testWidgets('capture le back-office : $name', skip: skip, (tester) async {
+      await _loadFont('Segoe UI', const <String>[
+        r'C:\Windows\Fonts\segoeui.ttf',
+        r'C:\Windows\Fonts\seguisb.ttf',
+        r'C:\Windows\Fonts\segoeuib.ttf',
+      ]);
+      final flutterRoot =
+          Platform.environment['FLUTTER_ROOT'] ??
+          File(Platform.resolvedExecutable)
+              .parent
+              .parent
+              .parent
+              .parent
+              .parent
+              .parent
+              .path;
+      await _loadFont('MaterialIcons', <String>[
+        '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+      ]);
+      tester.view.physicalSize = const Size(1280, 760);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final admin = AdminController(FakeAdminServer().api());
+      addTearDown(admin.dispose);
+      final key = GlobalKey();
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: key,
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: buildLeadDeskTheme(),
+            home: Scaffold(
+              backgroundColor: LdColors.background,
+              body: Padding(
+                padding: const EdgeInsets.all(8),
+                child: AdminScreen(controller: admin, onClose: () {}),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.runAsync(admin.load);
+      admin
+        ..open(section)
+        ..select(selected);
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      await tester.runAsync(() async {
+        final boundary =
+            key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final image = await boundary.toImage();
+        await _writePng(image, '$dir/$name.png');
+        image.dispose();
+      });
+    });
+  }
 }

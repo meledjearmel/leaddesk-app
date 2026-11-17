@@ -112,6 +112,13 @@ class ApiClient {
     return _data(response);
   }
 
+  Future<Object?> patch(String path, Map<String, Object?> body) async {
+    final response = await _http
+        .patch(_uri(path), headers: _headers, body: jsonEncode(body))
+        .timeout(timeout);
+    return _data(response);
+  }
+
   /// Réponse JSON complète, pour les routes qui n'enveloppent pas leur
   /// réponse dans `data` (jeton de connexion).
   Future<Map<String, Object?>> postRaw(

@@ -145,3 +145,11 @@ Décisions : D-012, D-013. Ordre : 0 → 1 → 2 → 5 → 3 → 4 → 6. Chaque
 **Testé** : 153 tests verts ; capture `execution_choix`.
 
 **Reste à faire** : essai réel du moteur avec une clé Anthropic (chaîne de compilation Windows à installer) ; suite du plan (back-office, Dashboard, activités et tâches dans l'application).
+
+## Back-office (17 novembre 2026)
+
+**Fait** : espace « Administration » ouvert par la roue dentée du rail. On y règle l'entreprise, l'organisation, les postes, les agents (poste, modèles IA, mise en service) et les fournisseurs IA avec leurs modèles. La corbeille et la restauration sont prévues, et chaque action dangereuse demande confirmation (D-026).
+
+**Testé** : 159 tests verts ; captures `admin_unites`, `admin_agent`, `admin_modeles`. Défaut corrigé à la capture : les listes déroulantes perdaient la police du thème.
+
+**Reste à faire** : essai réel du moteur avec une clé Anthropic ; Dashboard ; activités et tâches dans l'application ; dans le back-office, les intégrations MCP, les règles, les seuils de coût et les notifications.
